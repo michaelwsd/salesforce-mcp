@@ -896,4 +896,5 @@ if __name__ == "__main__":
     starlette_app = mcp.streamable_http_app()
     starlette_app.add_middleware(ApiKeyAuthMiddleware)
 
-    uvicorn.run(starlette_app, host="0.0.0.0", port=8080)
+    port = int(os.getenv("PORT", "8080"))
+    uvicorn.run(starlette_app, host="0.0.0.0", port=port)
