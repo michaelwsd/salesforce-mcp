@@ -1,9 +1,14 @@
 import time
 from starlette.requests import Request
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from app import mcp
 
 START_TIME = time.time()
+
+
+async def uptime_api(request: Request) -> JSONResponse:
+    seconds = int(time.time() - START_TIME)
+    return JSONResponse({"uptime_seconds": seconds})
 
 
 def _uptime() -> str:
@@ -96,7 +101,7 @@ async def status_page(request: Request) -> HTMLResponse:
             </div>
             <div class="card">
                 <div class="label">Uptime</div>
-                <div class="value">{uptime}</div>
+                <div class="value" id="uptime">{uptime}</div>
                 <div class="detail">{tool_count} tools</div>
             </div>
         </div>
@@ -107,6 +112,27 @@ async def status_page(request: Request) -> HTMLResponse:
             {tool_rows}
         </table>
     </div>
+    <script>
+        function formatUptime(s) {{
+            const d = Math.floor(s / 86400); s %= 86400;
+            const h = Math.floor(s / 3600); s %= 3600;
+            const m = Math.floor(s / 60); s %= 60;
+            const parts = [];
+            if (d) parts.push(d + 'd');
+            if (h) parts.push(h + 'h');
+            if (m) parts.push(m + 'm');
+            parts.push(s + 's');
+            return parts.join(' ');
+        }}
+        async function tick() {{
+            try {{
+                const r = await fetch('/api/uptime');
+                const data = await r.json();
+                document.getElementById('uptime').textContent = formatUptime(data.uptime_seconds);
+            }} catch(e) {{}}
+        }}
+        setInterval(tick, 1000);
+    </script>
 </body>
 </html>"""
     return HTMLResponse(html)

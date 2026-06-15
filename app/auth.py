@@ -13,7 +13,7 @@ VALID_API_KEYS = set(
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/":
+        if request.url.path in ("/", "/api/uptime"):
             return await call_next(request)
 
         if not VALID_API_KEYS:
