@@ -9,4 +9,5 @@ dependencies = [
     "simple-salesforce",
     "uvicorn",
     "python-dotenv",
+    "openpyxl",
 ]
