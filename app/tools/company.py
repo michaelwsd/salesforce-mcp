@@ -137,3 +137,44 @@ def get_related_contacts(record_id: str) -> dict:
         f"WHERE AccountId = '{record_id}'"
     )
     return {"source": "Account", "contacts": contacts["records"]}
+
+
+@mcp.tool()
+def get_gowt_opportunities(
+    priority: str | None = None,
+    owner: str | None = None,
+    platform_only: bool = False,
+) -> dict:
+    """Get opportunities in the GOWT pipeline (stage "8. Good opportunity wrong timing").
+
+    GOWT deals are opportunities that were good but the timing wasn't right.
+    They are tracked with a priority field (Ultra High, High, Medium, Low)
+    to indicate re-engagement urgency.
+
+    The "GOWT High (Platform)" report = High priority, excluding bolt-ons
+    (platform_only=True).
+
+    Args:
+        priority: Optional filter — 'Ultra High', 'High', 'Medium', or 'Low'.
+                  If omitted, returns all GOWT deals.
+        owner: Optional GOWT Owner filter (e.g. 'APC', 'NL', 'DG', 'BO', 'MY', 'HM', 'LF').
+        platform_only: If True, excludes portfolio bolt-ons (Transaction_type__c =
+                       '8. Portfolio company bolt-on'). Matches the "Platform" report filter.
+    """
+    sf = get_sf_client()
+    where = "StageName = '8. Good opportunity wrong timing'"
+    if priority:
+        where += f" AND GOWT_Priority__c = '{priority}'"
+    if owner:
+        where += f" AND fid53__c = '{owner}'"
+    if platform_only:
+        where += " AND Transaction_type__c != '8. Portfolio company bolt-on'"
+    return sf.query_all(
+        "SELECT Id, Name, StageName, GOWT_Priority__c, Transaction_type__c, "
+        "fid8__c, fid14__c, fid15__c, fid17__c, fid53__c, "
+        "Owner.Name, Resurrection_Date__c, Re_outreach_review_date__c, "
+        "Company__c, Company_Website__c "
+        "FROM Opportunity "
+        f"WHERE {where} "
+        "ORDER BY GOWT_Priority__c, Name"
+    )
