@@ -1,6 +1,6 @@
 # Salesforce MCP Server
 
-A remote MCP (Model Context Protocol) server that gives Claude full CRUD access to the Armitage Salesforce org. Built with FastMCP and deployed on Render.
+A remote MCP (Model Context Protocol) server that gives Claude full CRUD access to the Armitage Salesforce org and GOWT Excel data on OneDrive. Built with FastMCP and deployed on Render.
 
 ## Architecture
 
@@ -12,11 +12,38 @@ Claude Desktop / Claude Code
   FastMCP + Python
   Hosted on Render
         |
-        v  (REST API)
-  Armitage Salesforce Org
+        +--> Armitage Salesforce Org (REST API)
+        +--> OneDrive / GOWT Data Scrape (Microsoft Graph API)
 ```
 
-## Tools (24)
+**Status page:** https://salesforce-mcp-cq58.onrender.com/
+
+## Project Structure
+
+```
+salesforce-mcp/
+├── main.py              # Entry point — starts uvicorn, adds auth + status route
+├── Dockerfile
+├── pyproject.toml
+├── app/
+│   ├── __init__.py      # FastMCP instance + logging
+│   ├── client.py        # Salesforce OAuth2 connection
+│   ├── auth.py          # API key middleware (Bearer token)
+│   ├── field_map.py     # Legacy fid field name mappings
+│   ├── status.py        # Status page + uptime API
+│   └── tools/
+│       ├── __init__.py  # Imports all tool modules
+│       ├── crud.py      # query, search, get/create/update/delete_record
+│       ├── metadata.py  # list_objects, describe_object, describe_field
+│       ├── files.py     # list_files, get_file, attach_file_link
+│       ├── reports.py   # list_reports, run_report, list_dashboards
+│       ├── notes.py     # get_notes, get_activities, get_feed, get_field_history
+│       ├── company.py   # get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
+│       ├── bulk.py      # bulk_upsert, bulk_query
+│       └── onedrive.py  # list_onedrive_files, download_onedrive_file, read_gowt_excel
+```
+
+## Tools (28)
 
 ### Core CRUD
 | Tool | Description |
@@ -47,8 +74,9 @@ Claude Desktop / Claude Code
 | Tool | Description |
 |------|-------------|
 | `get_company_overview` | Pull everything for an Opportunity — record fields (human-readable names), Account, Contacts, Tasks, Events, Notes, Files, Growth Summaries |
-| `get_opportunity_field_map` | Get the mapping of legacy `fid` field names to readable labels (e.g. `fid15__c` -> "EBITDA estimate ($M)") |
+| `get_opportunity_field_map` | Get the mapping of legacy `fid` field names to readable labels (e.g. `fid15__c` → "EBITDA estimate ($M)") |
 | `get_related_contacts` | Get contacts via OpportunityContactRole or Account |
+| `get_gowt_opportunities` | Get GOWT pipeline deals with priority, owner, and platform filters. `priority="High", platform_only=True` reproduces the "GOWT High (Platform)" report. |
 
 ### Files
 | Tool | Description |
@@ -69,6 +97,13 @@ Claude Desktop / Claude Code
 |------|-------------|
 | `bulk_upsert` | Upsert multiple records via Bulk API |
 | `bulk_query` | Async query for large datasets |
+
+### OneDrive (GOWT Excel)
+| Tool | Description |
+|------|-------------|
+| `list_onedrive_files` | List files in the GOWT Data Scrape folder |
+| `download_onedrive_file` | Download a file as base64 |
+| `read_gowt_excel` | Download and parse a GOWT Excel spreadsheet, returning structured data (sheet names, headers, rows) |
 
 ## Setup for Team Members
 
@@ -126,6 +161,10 @@ python main.py
 | `CONSUMER_KEY` | Connected App consumer key |
 | `CONSUMER_SECRET` | Connected App consumer secret |
 | `MCP_API_KEYS` | Comma-separated valid API keys |
+| `AZURE_TENANT_ID` | Azure AD tenant ID (for OneDrive) |
+| `AZURE_CLIENT_ID` | Azure AD app client ID |
+| `AZURE_CLIENT_SECRET` | Azure AD app client secret |
+| `ONEDRIVE_REFRESH_TOKEN` | OneDrive OAuth2 refresh token |
 | `PORT` | Server port (default 8080) |
 
 ## Deployment
@@ -134,10 +173,13 @@ Hosted on Render (free tier). Auto-deploys on push to `main`.
 
 The Dockerfile builds a Python 3.12 image and runs `python main.py`, which starts a uvicorn server with Streamable HTTP transport on the port specified by the `PORT` env var.
 
+Note: Render free tier sleeps after 15 minutes of inactivity. First request after sleep takes ~30-60s.
+
 ## Tech Stack
 
 - **FastMCP** — MCP server framework
 - **simple-salesforce** — Salesforce REST API client
+- **openpyxl** — Excel file parsing (for GOWT spreadsheets)
 - **uvicorn** — ASGI server
-- **Starlette** — API key auth middleware
+- **Starlette** — Auth middleware + status page
 - **Render** — hosting (free tier)

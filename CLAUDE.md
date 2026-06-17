@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A remote MCP server that gives Claude (and any MCP client) full CRUD access to the Armitage Salesforce org. This is general-purpose infrastructure used across the origination workflow — the screener skill, meeting prep, IC memo generation, and any future workflow that needs Salesforce data.
+A remote MCP server that gives Claude (and any MCP client) full CRUD access to the Armitage Salesforce org and GOWT Excel data on OneDrive. This is general-purpose infrastructure used across the origination workflow — the screener skill, meeting prep, IC memo generation, and any future workflow that needs Salesforce data.
 
 ---
 
@@ -15,21 +15,46 @@ Claude Desktop / Skill / Agent
 ┌──────────────────────────┐
 │   Salesforce MCP Server  │
 │   FastMCP + Python       │
-│   Hosted on Fly.io       │
+│   Hosted on Render       │
 └──────────┬───────────────┘
-           │  (REST API v62.0)
-           ▼
-┌──────────────────────────┐
-│   Armitage Salesforce    │
-│   Org                    │
-└──────────────────────────┘
+           │
+           ├── (REST API v62.0) ──▶ Armitage Salesforce Org
+           │
+           └── (Microsoft Graph) ──▶ OneDrive / GOWT Data Scrape
 ```
 
-**Transport:** Streamable HTTP (recommended over SSE for remote servers). Endpoint mounted at `/mcp` by default.
+**Transport:** Streamable HTTP. Endpoint at `/mcp`. Status page at `/`.
 
 **Framework:** FastMCP (Python SDK) — tools defined as decorated functions, schema auto-generated from type hints.
 
-**Hosting:** Fly.io free tier (256MB RAM, always-on, no cold starts). Single process running uvicorn.
+**Hosting:** Render free tier (512MB RAM, sleeps after 15min inactivity). Single process running uvicorn.
+
+---
+
+## Project Structure
+
+```
+salesforce-mcp/
+├── main.py              # Entry point — starts uvicorn, adds auth + status route
+├── Dockerfile
+├── pyproject.toml
+├── app/
+│   ├── __init__.py      # FastMCP instance + logging + tool registration
+│   ├── client.py        # Salesforce OAuth2 connection (get_sf_client)
+│   ├── auth.py          # API key middleware (skips / and /api/uptime)
+│   ├── field_map.py     # OPPORTUNITY_FIELD_MAP + OTHER_NOTABLE_FIELDS
+│   ├── status.py        # Status page HTML + live uptime API
+│   └── tools/
+│       ├── __init__.py  # Imports all tool modules to trigger @mcp.tool() registration
+│       ├── crud.py      # 6 tools: query, search, get/create/update/delete_record
+│       ├── metadata.py  # 3 tools: list_objects, describe_object, describe_field
+│       ├── files.py     # 3 tools: list_files, get_file, attach_file_link
+│       ├── reports.py   # 3 tools: list_reports, run_report, list_dashboards
+│       ├── notes.py     # 4 tools: get_notes, get_activities, get_feed, get_field_history
+│       ├── company.py   # 4 tools: get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
+│       ├── bulk.py      # 2 tools: bulk_upsert, bulk_query
+│       └── onedrive.py  # 3 tools: list_onedrive_files, download_onedrive_file, read_gowt_excel
+```
 
 ---
 
@@ -37,28 +62,41 @@ Claude Desktop / Skill / Agent
 
 ### Salesforce Auth (server → Salesforce)
 
-OAuth2 client credentials flow, same pattern as the existing `armitage-outreach-automation` repo. Credentials stored as environment variables on the hosting platform.
+OAuth2 client credentials flow, same pattern as the `armitage-deployed` repo. Credentials stored as environment variables on Render.
 
 | Variable | Purpose |
 |----------|---------|
-| `SALESFORCE_DOMAIN` | Instance URL (e.g. `https://armitage.my.salesforce.com`) |
+| `SALESFORCE_DOMAIN` | Instance URL |
 | `CONSUMER_KEY` | Connected App consumer key |
 | `CONSUMER_SECRET` | Connected App consumer secret |
-| `SALESFORCE_USERNAME` | Login email |
-| `SALESFORCE_PASSWORD` | Password |
-| `SALESFORCE_SECURITY_TOKEN` | Security token |
+| `SALESFORCE_USERNAME` | Login email (fallback auth) |
+| `SALESFORCE_PASSWORD` | Password (fallback auth) |
+| `SALESFORCE_SECURITY_TOKEN` | Security token (fallback auth) |
 
-Token is cached in memory and refreshed on expiry. Use `simple-salesforce` library for all API calls.
+### OneDrive Auth (server → Microsoft Graph)
+
+OAuth2 refresh token flow, same credentials as `armitage-deployed`.
+
+| Variable | Purpose |
+|----------|---------|
+| `AZURE_TENANT_ID` | Azure AD tenant ID |
+| `AZURE_CLIENT_ID` | Azure AD app client ID |
+| `AZURE_CLIENT_SECRET` | Azure AD app client secret |
+| `ONEDRIVE_REFRESH_TOKEN` | OAuth2 refresh token (expires after 90 days of inactivity) |
 
 ### MCP Auth (client → MCP server)
 
-API key passed as a bearer token in the HTTP header. Each team member gets a key. This prevents unauthorised access to the server.
+API key passed as Bearer token in HTTP header. Each team member gets a key. The `/` status page and `/api/uptime` endpoint are public (no auth required).
+
+| Variable | Purpose |
+|----------|---------|
+| `MCP_API_KEYS` | Comma-separated valid API keys |
 
 ---
 
-## Tools to Expose
+## Tools (28)
 
-### Core CRUD
+### Core CRUD (crud.py)
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
@@ -69,7 +107,7 @@ API key passed as a bearer token in the HTTP header. Each team member gets a key
 | `update_record` | Update existing record | `object_type: str, record_id: str, data: dict` |
 | `delete_record` | Delete a record | `object_type: str, record_id: str` |
 
-### Discovery & Metadata
+### Discovery & Metadata (metadata.py)
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
@@ -77,35 +115,62 @@ API key passed as a bearer token in the HTTP header. Each team member gets a key
 | `describe_object` | Get field metadata for an object | `object_type: str` |
 | `describe_field` | Get picklist values, field type, etc. | `object_type: str, field_name: str` |
 
-### Reports & Dashboards
+### Notes & Activities (notes.py)
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `run_report` | Execute a Salesforce report by ID | `report_id: str, filters: dict (optional)` |
-| `list_dashboards` | List available dashboards | None |
+| `get_notes` | Get notes from all sources (Event Descriptions, Task Descriptions, classic Notes, ContentNotes). Primary source of meeting notes (APC notes, NL notes, etc.) | `record_id: str, since: str (optional YYYY-MM-DD), limit: int (default 20)` |
+| `get_activities` | Get all Tasks and Events with Descriptions | `record_id: str, include_description: bool (default True)` |
+| `get_feed` | Get Chatter feed posts | `record_id: str` |
+| `get_field_history` | Get field change history | `object_type: str, record_id: str` |
 
-### File Operations
+### Company Deep-Dive (company.py)
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `get_company_overview` | Pull everything for an Opportunity | `opportunity_id: str` |
+| `get_opportunity_field_map` | Get fid → readable name mapping | None |
+| `get_related_contacts` | Get contacts via OCR or Account | `record_id: str` |
+| `get_gowt_opportunities` | Get GOWT pipeline deals. `priority="High", platform_only=True` = "GOWT High (Platform)" report | `priority: str (optional), owner: str (optional), platform_only: bool (default False)` |
+
+### Files (files.py)
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `list_files` | List ContentDocuments linked to a record | `record_id: str` |
-| `get_file` | Download a file by ContentDocument ID | `document_id: str` |
-| `attach_file_link` | Create a ContentVersion linked to a record with an external URL | `record_id: str, url: str, title: str` |
+| `get_file` | Get file metadata and download URL | `document_id: str` |
+| `attach_file_link` | Link an external URL to a record | `record_id: str, url: str, title: str` |
 
-Note: actual file storage is external (S3 or Google Drive). Salesforce holds reference URLs via `attach_file_link`. The upload-to-S3 step is handled by a separate storage tool or the screener skill itself.
+### Reports & Dashboards (reports.py)
 
-### Bulk Operations
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `list_reports` | List all reports | None |
+| `run_report` | Execute a report by ID | `report_id: str, filters: dict (optional)` |
+| `list_dashboards` | List all dashboards | None |
+
+### Bulk Operations (bulk.py)
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `bulk_upsert` | Upsert multiple records | `object_type: str, external_id_field: str, records: list[dict]` |
 | `bulk_query` | Async query for large datasets | `soql: str` |
 
+### OneDrive / GOWT Excel (onedrive.py)
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `list_onedrive_files` | List files in GOWT Data Scrape folder | None |
+| `download_onedrive_file` | Download a file as base64 | `filename: str` |
+| `read_gowt_excel` | Parse a GOWT Excel spreadsheet into structured data | `filename: str, sheet_name: str (optional), max_rows: int (default 100)` |
+
+**OneDrive files:**
+- `GOWT_high.xlsx` — one tab per GOWT High company with LinkedIn posts (updated monthly by `armitage-deployed`)
+- `GOWT_mid_low.xlsx` — FTE Tracking sheet + quarterly news sheets (updated quarterly by `armitage-deployed`)
+
 ---
 
 ## Key Salesforce Objects
-
-Based on the existing outreach-automation repo, these are the primary objects the MCP needs to interact with:
 
 | Object | Usage in Workflow |
 |--------|-------------------|
@@ -114,87 +179,72 @@ Based on the existing outreach-automation repo, these are the primary objects th
 | `Contact` | People — founders, management, advisors |
 | `OpportunityContactRole` | Links contacts to opportunities (primary contact lookup) |
 | `ContentDocument` / `ContentVersion` | Attached files (CIMs, IMs, screeners) |
-| `Task` / `Event` | Meeting notes, follow-ups |
-| `Growth_News__c` | Custom field — growth signals from outreach automation |
-| `Growth_Actions__c` | Custom field — AI-generated action items |
-| `P__c` | Custom field — contact LinkedIn activity |
+| `Task` / `Event` | Meeting notes, follow-ups (notes in Description field) |
+| `Growth_Summary__c` | LinkedIn news and AI-generated action items |
 
-The MCP should work with any object, not just these — the tools are generic.
+### Key Opportunity Stages
 
----
+| Stage | Meaning |
+|-------|---------|
+| `8. Good opportunity wrong timing` | GOWT pipeline — tracked by priority (Ultra High/High/Medium/Low) |
+| `7. Killed` | Dead deals |
 
-## Screener Skill Integration
+### GOWT Report Filters
 
-The screener skill is the first consumer of this MCP. The flow:
+"GOWT High (Platform)" = `StageName = '8. Good opportunity wrong timing' AND GOWT_Priority__c = 'High' AND Transaction_type__c != '8. Portfolio company bolt-on'` (24 records as of June 2026).
 
-```
-User: "Build the screener for Total Essential Services Group"
-                │
-                ▼
-┌─────────────────────────────────────────┐
-│  Screener Skill                         │
-│                                         │
-│  1. Call MCP: query Salesforce for      │
-│     company data (Account, Opportunity, │
-│     Contacts, notes, activity history)  │
-│                                         │
-│  2. Call MCP: list_files to find any    │
-│     existing docs linked to the record  │
-│                                         │
-│  3. Accept user-uploaded docs           │
-│     (CIM, IM, financials — PDF, DOCX,  │
-│     PPTX)                              │
-│                                         │
-│  4. Extract text from all sources       │
-│     - PDF → pdftotext                   │
-│     - DOCX → pandoc                     │
-│     - PPTX → python-pptx               │
-│                                         │
-│  5. Convert all docs to page images     │
-│     - PDF → pdftoppm                    │
-│     - DOCX/PPTX → LibreOffice → PDF    │
-│       → pdftoppm                        │
-│                                         │
-│  6. Claude visually scans page images,  │
-│     identifies charts/tables relevant   │
-│     to screener sections, returns crop  │
-│     coordinates                         │
-│                                         │
-│  7. Crop images (Pillow) and insert     │
-│     into screener template              │
-│                                         │
-│  8. Populate screener sections:         │
-│     - Business overview (from CIM text  │
-│       + Salesforce data)                │
-│     - Financial overview (text + cropped│
-│       charts)                           │
-│     - Transaction dynamics (SF notes +  │
-│       CIM)                              │
-│     - Investment thesis criteria (AI    │
-│       scored Y/N/? with reasoning)      │
-│     - Porter's Five Forces (AI rated    │
-│       L/M/H with commentary)           │
-│                                         │
-│  9. Generate completed .docx            │
-│                                         │
-│ 10. Upload to S3/GDrive, call MCP:     │
-│     attach_file_link to Salesforce      │
-└─────────────────────────────────────────┘
-```
+### Legacy Field Names
+
+Many Opportunity fields have cryptic `fid` names from the SalesforceIQ migration. The mapping is in `app/field_map.py`. Key fields:
+- `fid14__c` → Revenue estimate ($M)
+- `fid15__c` → EBITDA estimate ($M)
+- `fid17__c` → EV estimate ($M)
+- `fid8__c` → Industry
+- `fid53__c` → GOWT Owner (e.g. APC, NL, DG, BO, MY, HM, LF)
+
+### Where Notes Live
+
+Notes in this org are scattered across four places:
+1. **Event.Description** — primary source (APC notes, NL notes, meeting summaries)
+2. **Task.Description** — follow-up notes, call logs
+3. **Note** — classic notes linked via ParentId
+4. **ContentNote** — enhanced notes linked via ContentDocumentLink
+
+The `get_notes` tool searches all four. Events/Tasks are linked via WhatId (Opportunity/Account) or WhoId (Contact/Lead — prefixes 003/00Q).
 
 ---
 
-## Screener Template Sections
+## Deployment
 
-The screener (based on the Total Essential Services Group example) has five sections. Each has different automation characteristics:
+### Render (current)
 
-| Section | Auto-populated from | AI confidence | Human review needed |
-|---------|---------------------|---------------|---------------------|
-| Business & Industry Overview | CIM text, Salesforce Account fields, web research | High | Light edit |
-| Financial Overview | CIM financials, cropped charts from uploaded docs | High (text), Medium (chart selection) | Verify chart relevance |
-| Transaction Dynamics & Recommendation | Salesforce notes, CIM deal section | Medium | Yes — recommendation is a human call |
-| Investment Thesis Criteria | All sources — AI scores Y/N/? per criterion | Medium | Yes — validate judgement calls |
-| Porter's Five Forces | CIM + web research — AI rates L/M/H | Medium | Yes — analyst overlay |
+Hosted on Render free tier. Auto-deploys from GitHub `main` branch.
+
+- **URL:** https://salesforce-mcp-cq58.onrender.com/mcp
+- **Status page:** https://salesforce-mcp-cq58.onrender.com/
+- **Free tier limits:** 750hrs/month, 512MB RAM, sleeps after 15min inactivity
+
+### Connect from Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "armitage-salesforce": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://salesforce-mcp-cq58.onrender.com/mcp",
+        "--header",
+        "Authorization:${AUTH_TOKEN}"
+      ],
+      "env": {
+        "AUTH_TOKEN": "Bearer <your-api-key>"
+      }
+    }
+  }
+}
+```
 
 ---
 
@@ -204,179 +254,41 @@ The screener (based on the Total Essential Services Group example) has five sect
 |-----------|------------|
 | MCP framework | FastMCP (Python SDK) |
 | Salesforce client | `simple-salesforce` |
+| Excel parsing | `openpyxl` |
+| OneDrive API | Microsoft Graph v1.0 (OAuth2 refresh token) |
 | Transport | Streamable HTTP (`/mcp` endpoint) |
 | ASGI server | uvicorn |
-| Hosting | Fly.io (free tier, 256MB RAM) |
-| Auth | Bearer token (API key per user) |
-| Python version | 3.12+ |
-
-### Dependencies
-
-```
-mcp[cli]
-simple-salesforce
-uvicorn
-```
+| Auth | Bearer token middleware (Starlette) |
+| Hosting | Render (free tier) |
+| Python | 3.12+ |
 
 ---
 
-## Server Skeleton
+## Related Repos
 
-```python
-from mcp.server.fastmcp import FastMCP
-from simple_salesforce import Salesforce
-import os
-
-mcp = FastMCP("Armitage Salesforce", stateless_http=True)
-
-def get_sf_client():
-    return Salesforce(
-        username=os.environ["SALESFORCE_USERNAME"],
-        password=os.environ["SALESFORCE_PASSWORD"],
-        security_token=os.environ["SALESFORCE_SECURITY_TOKEN"],
-        consumer_key=os.environ["CONSUMER_KEY"],
-        consumer_secret=os.environ["CONSUMER_SECRET"],
-        domain=os.environ.get("SALESFORCE_DOMAIN", "login"),
-    )
-
-@mcp.tool()
-def query(soql: str) -> dict:
-    """Run a SOQL query against Salesforce. Returns matching records."""
-    sf = get_sf_client()
-    return sf.query_all(soql)
-
-@mcp.tool()
-def get_record(object_type: str, record_id: str) -> dict:
-    """Get a single Salesforce record by object type and ID."""
-    sf = get_sf_client()
-    obj = getattr(sf, object_type)
-    return obj.get(record_id)
-
-@mcp.tool()
-def create_record(object_type: str, data: dict) -> dict:
-    """Create a new Salesforce record."""
-    sf = get_sf_client()
-    obj = getattr(sf, object_type)
-    return obj.create(data)
-
-@mcp.tool()
-def update_record(object_type: str, record_id: str, data: dict) -> dict:
-    """Update an existing Salesforce record."""
-    sf = get_sf_client()
-    obj = getattr(sf, object_type)
-    return obj.update(record_id, data)
-
-@mcp.tool()
-def delete_record(object_type: str, record_id: str) -> dict:
-    """Delete a Salesforce record."""
-    sf = get_sf_client()
-    obj = getattr(sf, object_type)
-    return obj.delete(record_id)
-
-@mcp.tool()
-def describe_object(object_type: str) -> dict:
-    """Get field metadata for a Salesforce object."""
-    sf = get_sf_client()
-    obj = getattr(sf, object_type)
-    return obj.describe()
-
-@mcp.tool()
-def list_files(record_id: str) -> dict:
-    """List all files (ContentDocuments) linked to a Salesforce record."""
-    sf = get_sf_client()
-    return sf.query(
-        f"SELECT ContentDocumentId, ContentDocument.Title, "
-        f"ContentDocument.FileType, ContentDocument.ContentSize "
-        f"FROM ContentDocumentLink "
-        f"WHERE LinkedEntityId = '{record_id}'"
-    )
-
-# Add remaining tools following the same pattern...
-
-if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8080)
-```
+- **armitage-deployed** — LinkedIn scraper + GOWT Excel generation + OneDrive upload. Runs on GitHub Actions (monthly High, quarterly Medium/Low, quarterly FTE). Uses same Salesforce + OneDrive credentials.
 
 ---
 
-## Deployment (Fly.io)
+## Screener Skill Integration
 
-### fly.toml
+The screener skill is the first consumer of this MCP. The flow:
 
-```toml
-app = "armitage-salesforce-mcp"
+1. Query Salesforce for company data (Account, Opportunity, Contacts, notes, activity history)
+2. List files linked to the record
+3. Accept user-uploaded docs (CIM, IM, financials)
+4. Extract text + page images from docs
+5. Claude identifies relevant charts/tables
+6. Populate screener template sections
+7. Generate completed .docx
+8. Upload to storage, link to Salesforce via `attach_file_link`
 
-[build]
-  builder = "paketobuildpacks/builder:base"
+### Screener Sections
 
-[env]
-  PORT = "8080"
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-
-[[vm]]
-  memory = "256mb"
-  cpu_kind = "shared"
-  cpus = 1
-```
-
-### Deploy
-
-```bash
-fly launch
-fly secrets set SALESFORCE_USERNAME=... CONSUMER_KEY=... # etc.
-fly deploy
-```
-
-### Connect from Claude Desktop
-
-Add to Claude Desktop MCP config:
-
-```json
-{
-  "mcpServers": {
-    "armitage-salesforce": {
-      "url": "https://armitage-salesforce-mcp.fly.dev/mcp",
-      "headers": {
-        "Authorization": "Bearer <API_KEY>"
-      }
-    }
-  }
-}
-```
-
----
-
-## Security Considerations
-
-- **Salesforce permissions:** The connected app should use a dedicated integration user with a permission set scoped to the objects/fields the workflow needs. Do not use an admin account.
-- **API key rotation:** Support multiple valid API keys so team members can be revoked individually.
-- **Query guardrails:** Consider adding a `LIMIT` clause to unbounded SOQL queries to prevent accidental full-table scans.
-- **Audit logging:** Log all write operations (create, update, delete) with the API key used and timestamp.
-- **No credentials in code:** All secrets via environment variables on Fly.io.
-
----
-
-## Build Order
-
-1. **MCP server with core CRUD + query tools** — get basic read/write working
-2. **Add describe/metadata tools** — so Claude can discover schema
-3. **Add file operations** — list and link files to records
-4. **Add report/dashboard tools** — for GOWT dashboard access
-5. **Add bulk operations** — for batch updates
-6. **Deploy to Fly.io** — remote access for the team
-7. **Build screener skill** — first consumer of the MCP
-8. **Iterate** — add tools as new workflow steps need them
-
----
-
-## References
-
-- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
-- [FastMCP docs](https://gofastmcp.com/deployment/running-server)
-- [simple-salesforce](https://github.com/simple-salesforce/simple-salesforce)
-- [Salesforce REST API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/)
-- [Fly.io deployment](https://fly.io/docs/languages-and-frameworks/python/)
-- [Existing outreach-automation repo](https://github.com/armitage-associates/armitage-outreach-automation)
+| Section | Sources | AI Confidence |
+|---------|---------|---------------|
+| Business & Industry Overview | CIM text, SF Account, web research | High |
+| Financial Overview | CIM financials, cropped charts | Medium-High |
+| Transaction Dynamics & Recommendation | SF notes, CIM deal section | Medium |
+| Investment Thesis Criteria | All sources — Y/N/? per criterion | Medium |
+| Porter's Five Forces | CIM + web research — L/M/H | Medium |
