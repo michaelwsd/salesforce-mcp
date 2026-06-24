@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Origination OS · Step 1 System Map</title>
+<style>
+  :root{
+    --ink:#16243B; --muted:#5C6776; --steel:#2F5D8C; --line:#DADFE6;
+    --paper:#FFFFFF; --wash:#F7F9FB;
+    --green:#1B6B4C; --green-bg:rgba(27,107,76,.08);
+    --amber:#9A6B12; --amber-bg:rgba(154,107,18,.08);
+    --critical:#9B2D2D; --critical-bg:rgba(155,45,45,.06);
+    --steel-bg:rgba(47,93,140,.07);
+    --display:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;
+    --body:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#C2C9D4;color:var(--ink);font-family:var(--body);font-size:12px;line-height:1.5;
+    padding:22px 0;-webkit-font-smoothing:antialiased;}
+  .sheet{width:300mm;max-width:97%;background:var(--paper);margin:0 auto;position:relative;
+    padding:13mm 15mm 10mm;box-shadow:0 6px 32px rgba(17,32,58,.22);display:flex;flex-direction:column;gap:20px;}
+  .sheet::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
+    background:linear-gradient(90deg,var(--ink),var(--steel) 70%,var(--green));}
+
+  .mast{border-bottom:1px solid var(--line);padding-bottom:9px;}
+  .eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--steel);font-weight:600;}
+  h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:-.01em;margin:5px 0 4px;}
+  .legend{display:flex;gap:15px;flex-wrap:wrap;margin-top:8px;font-size:10px;}
+  .legend span{display:flex;align-items:center;gap:5px;color:var(--muted);}
+  .dot{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  h2{font-family:var(--display);font-size:15px;font-weight:700;display:flex;align-items:center;gap:9px;margin-bottom:10px;}
+  h2 .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
+    background:var(--steel);color:#fff;font-size:11px;font-weight:700;flex:none;}
+
+  /* MAP */
+  .map{display:grid;grid-template-columns:1fr 30px 1fr 30px 1.05fr 30px 1fr 30px 0.95fr;align-items:stretch;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .colhd{font-size:9px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted);text-align:center;
+    padding-bottom:3px;border-bottom:1px solid var(--line);margin-bottom:2px;}
+  .node{border:1px solid var(--line);border-radius:5px;padding:6px 9px;background:var(--paper);}
+  .node .t{font-weight:600;font-size:10.5px;display:block;line-height:1.2;}
+  .node .d{color:var(--muted);font-size:9px;display:block;margin-top:1px;line-height:1.25;}
+  .n-steel{border-left:3px solid var(--steel);}
+  .n-green{border-left:3px solid var(--green);}
+  .n-amber{border-left:3px solid var(--amber);}
+  .n-crit{border-left:3px solid var(--critical);background:var(--critical-bg);}
+  .n-core{border:1.5px solid var(--steel);background:var(--steel-bg);}
+  .flowsep{display:flex;align-items:center;justify-content:center;color:var(--steel);font-size:18px;font-weight:700;}
+
+  .crosslinks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+  .cl{border:1px dashed var(--line);border-radius:5px;padding:7px 10px;font-size:9.5px;color:var(--muted);line-height:1.35;}
+  .cl b{color:var(--ink);font-weight:600;}
+  .cl .a{font-weight:700;}
+  .cl.write{border-color:var(--steel);}.cl.write .a{color:var(--steel);}
+  .cl.reply{border-color:var(--green);}.cl.reply .a{color:var(--green);}
+  .cl.loop{border-color:var(--amber);background:var(--amber-bg);}.cl.loop .a{color:var(--amber);}
+  code{font-family:var(--display);font-size:9px;background:var(--wash);border:1px solid var(--line);
+    border-radius:3px;padding:0 4px;color:var(--ink);}
+
+  /* DATAFLOW FLOWCHART */
+  .fc{display:flex;flex-direction:column;align-items:center;gap:0;}
+  .fcbox{width:380px;max-width:100%;border:1px solid var(--line);border-radius:6px;padding:11px 16px;
+    background:var(--paper);text-align:center;}
+  code{display:inline-block;margin:1px 0;}
+  .fcbox .ft{display:block;font-weight:700;font-size:11.5px;margin-bottom:3px;}
+  .fcbox .fd{display:block;font-size:9.5px;color:var(--muted);line-height:1.35;}
+  .fcbox.proc{border-left:3px solid var(--steel);}
+  .fcbox.scrape{border-left:3px solid var(--steel);background:rgba(47,93,140,.04);}
+  .fcbox.amber{border-left:3px solid var(--amber);background:var(--amber-bg);}
+  .fcbox.amber .ft{color:var(--amber);}
+  .fcgate{width:380px;max-width:100%;text-align:center;border:1.5px solid var(--critical);
+    background:var(--critical-bg);border-radius:6px;padding:11px 16px;}
+  .fcgate .ft{display:block;font-weight:700;color:var(--critical);font-size:11.5px;margin-bottom:3px;}
+  .fcgate .fd{display:block;font-size:9.5px;color:var(--muted);line-height:1.35;}
+  .fcarrow{color:var(--steel);font-size:15px;font-weight:700;line-height:1;padding:3px 0;
+    display:flex;flex-direction:column;align-items:center;gap:1px;}
+  .fcarrow .al{font-size:8.5px;color:var(--muted);font-weight:600;}
+  .fcdiamond{width:230px;text-align:center;font-weight:700;font-size:10px;color:var(--critical);
+    border:1.5px solid var(--critical);background:var(--critical-bg);border-radius:50px;padding:8px 12px;}
+
+  /* branch row: centered decision + a right-hand exit */
+  .fcbranch{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;width:100%;}
+  .fcbranch .mid{display:flex;justify-content:center;}
+  .fcbranch .right{display:flex;align-items:center;gap:7px;}
+  .fcbranch .right .ha{font-size:15px;font-weight:700;}
+  .fcbranch .right .yes{font-size:9px;font-weight:700;}
+  .fcbranch .right .fcbox{width:200px;text-align:left;}
+
+  .fccycle{border:1.5px dashed var(--amber);border-radius:9px;padding:15px 14px 14px;margin-top:4px;
+    display:flex;flex-direction:column;align-items:center;position:relative;width:100%;}
+  .fccycle .cyhd{position:absolute;top:-8px;left:16px;background:var(--paper);padding:0 8px;
+    font-family:var(--display);font-size:9.5px;font-weight:700;color:var(--amber);letter-spacing:.04em;}
+  .loopbacknote{display:flex;align-items:center;gap:7px;margin-top:6px;font-size:9.5px;font-weight:700;
+    color:var(--amber);border:1px dashed var(--amber);background:var(--amber-bg);border-radius:50px;padding:5px 14px;}
+
+  footer{margin-top:6px;padding-top:9px;border-top:1px solid var(--line);
+    font-size:10px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+
+  /* PAGE 2 — TECH STACK */
+  .sub2{font-size:10.5px;color:var(--muted);margin-bottom:11px;}
+  table.tech{border-collapse:collapse;width:100%;font-size:10px;}
+  table.tech th,table.tech td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top;line-height:1.35;}
+  table.tech th{background:var(--steel-bg);color:var(--steel);font-family:var(--display);font-size:9px;
+    letter-spacing:.04em;text-transform:uppercase;}
+  table.tech td.tn{font-weight:700;white-space:nowrap;}
+  table.tech td.tn .s{display:block;font-weight:400;color:var(--muted);font-size:9px;white-space:normal;}
+  .grp td{background:var(--ink);color:#fff;font-family:var(--display);font-weight:700;font-size:9px;
+    letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;}
+  .pill{display:inline-block;font-size:8px;font-weight:700;border-radius:9px;padding:1px 7px;white-space:nowrap;}
+  .pill.exist{background:var(--green-bg);color:var(--green);border:1px solid var(--green);}
+  .pill.new{background:var(--steel-bg);color:var(--steel);border:1px solid var(--steel);}
+  .pill.review{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);}
+  .pill.gate{background:var(--critical-bg);color:var(--critical);border:1px solid var(--critical);}
+  .free{color:var(--green);font-weight:700;}
+  .usage{color:var(--steel);font-weight:700;}
+  .models{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+  .mbox{border:1px solid var(--line);border-top:2px solid var(--steel);border-radius:5px;padding:9px 12px;}
+  .mbox h4{font-family:var(--display);font-size:10.5px;margin-bottom:5px;}
+  .mbox table{border-collapse:collapse;width:100%;font-size:9.5px;}
+  .mbox td{padding:2px 4px;border-bottom:1px solid var(--line);}
+  .mbox td:last-child{text-align:right;font-family:var(--display);color:var(--ink);}
+  .mbox tr:last-child td{border-bottom:none;}
+  .mnote{font-size:9px;color:var(--muted);margin-top:6px;line-height:1.4;}
+  .summary{margin-top:14px;border:1.5px solid var(--green);background:var(--green-bg);border-radius:6px;padding:11px 14px;}
+  .summary h4{font-family:var(--display);font-size:11.5px;color:var(--green);margin-bottom:6px;}
+  .summary ul{list-style:none;display:flex;flex-direction:column;gap:4px;}
+  .summary li{position:relative;padding-left:15px;font-size:10px;line-height:1.4;}
+  .summary li::before{content:"";position:absolute;left:2px;top:6px;width:5px;height:5px;border-radius:50%;background:var(--green);}
+  .summary li b{font-weight:700;}
+  .summary li.gate::before{background:var(--critical);}
+  .summary li.save::before{background:var(--amber);}
+
+  @media print{body{background:#fff;padding:0;}.sheet{box-shadow:none;margin:0 0 8mm;width:auto;max-width:none;}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}section{break-inside:avoid;}}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="mast">
+    <p class="eyebrow">Armitage Associates · Origination OS · Step 1 (Sourcing)</p>
+    <h1>System map &amp; end-to-end data flow</h1>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--steel)"></i>process / engine</span>
+      <span><i class="dot" style="background:var(--green)"></i>data store / good terminal</span>
+      <span><i class="dot" style="background:var(--amber)"></i>nurture / feedback loop</span>
+      <span><i class="dot" style="background:var(--critical)"></i>gate / decision</span>
+    </div>
+  </header>
+
+  <!-- 1 · MAP -->
+  <section>
+    <h2><span class="n">1</span>The pieces &amp; how they link</h2>
+    <div class="map">
+      <div class="col">
+        <div class="colhd">Sources &amp; policy</div>
+        <div class="node n-steel"><span class="t">PE philosophy + niches</span><span class="d">filter thresholds (config)</span></div>
+        <div class="node n-steel"><span class="t">Tecala / Originate</span><span class="d">direct discovery</span></div>
+        <div class="node n-steel"><span class="t">Signals scraper</span><span class="d">LinkedIn · FTE · news (armitage-deployed)</span></div>
+        <div class="node n-steel"><span class="t">Advisor intros</span><span class="d">intermediary channel</span></div>
+      </div>
+      <div class="flowsep">→</div>
+      <div class="col">
+        <div class="colhd">Data layer (stores)</div>
+        <div class="node n-green"><span class="t">OneDrive</span><span class="d">GOWT_high / mid_low .xlsx</span></div>
+        <div class="node n-green"><span class="t">Salesforce — SoR</span><span class="d">Prospect · Sequence · Growth_Summary__c · Outreach/Reply log</span></div>
+        <div class="node n-green"><span class="t">M365 mailbox</span><span class="d">where replies land</span></div>
+        <div class="node"><span class="t">L2 adapters</span><span class="d">swappable read/write surface</span></div>
+      </div>
+      <div class="flowsep">→</div>
+      <div class="col">
+        <div class="colhd">Engine core (L5)</div>
+        <div class="node n-crit"><span class="t">Qualify + vetting gate</span><span class="d">filters · fit score · dedup · approve</span></div>
+        <div class="node n-core"><span class="t">Enrollment</span><span class="d">create sequence + attach teaser</span></div>
+        <div class="node n-core"><span class="t">Sequence state machine</span><span class="d">Enrolled→Initial→FU1→FU2→Break-up</span></div>
+        <div class="node n-core"><span class="t">Scheduler · daily tick</span><span class="d">the “wait N days” timers</span></div>
+      </div>
+      <div class="flowsep">→</div>
+      <div class="col">
+        <div class="colhd">Action services (L4)</div>
+        <div class="node n-steel"><span class="t">Sender</span><span class="d">personalized letter + attachment</span></div>
+        <div class="node n-green"><span class="t">Reply detector</span><span class="d">M365 Graph poll + classify</span></div>
+        <div class="node n-steel"><span class="t">Conversion</span><span class="d">book discovery call</span></div>
+      </div>
+      <div class="flowsep">→</div>
+      <div class="col">
+        <div class="colhd">Outcomes</div>
+        <div class="node n-green"><span class="t">Discovery call booked</span><span class="d">on reply</span></div>
+        <div class="node n-green"><span class="t">Converted lead</span><span class="d">→ handoff Step 2</span></div>
+        <div class="node n-amber"><span class="t">Nurture list ↺</span><span class="d">re-approach when signals refresh</span></div>
+      </div>
+    </div>
+
+    <div class="crosslinks">
+      <div class="cl write"><span class="a">↩ Write-back —</span> <b>Sender &amp; Reply detector</b> write <code>OutreachEvent</code> / <code>ReplyEvent</code> back into the SoR — audit + “never pitch twice” history.</div>
+      <div class="cl reply"><span class="a">↩ Reply capture —</span> <b>Reply detector</b> reads the <b>M365 mailbox</b> (same Azure app in repo + <code>Mail.Read</code>); a genuine reply halts the sequence and triggers <b>Conversion</b>.</div>
+      <div class="cl loop"><span class="a">↺ Feedback loop —</span> <b>Nurture</b> → next <b>scrape</b> refreshes <code>Growth_Summary__c</code> → threshold crossed → <b>re-qualify</b> → new sequence.</div>
+    </div>
+  </section>
+
+  <!-- 2 · DATAFLOW FLOWCHART -->
+  <section>
+    <h2><span class="n">2</span>End-to-end data flow</h2>
+    <div class="fc">
+
+      <div class="fcbox scrape"><span class="ft">0 · Scrape signals</span><span class="fd">scraper (async, monthly/quarterly) → writes <code>GOWT_*.xlsx</code> + <code>Growth_Summary__c</code></span></div>
+      <div class="fcarrow">↓</div>
+      <div class="fcbox proc"><span class="ft">1 · Discover &amp; normalize</span><span class="fd">Tecala + scraped signals + advisor intros → <code>Candidate</code></span></div>
+      <div class="fcarrow">↓</div>
+      <div class="fcbox proc"><span class="ft">2 · Apply filters</span><span class="fd">Rev/EBITDA · growth · margins · moat (from policy config)</span></div>
+      <div class="fcarrow">↓ <span class="al">passers</span></div>
+      <div class="fcbox proc"><span class="ft">3 · Deep-dive analysis</span><span class="fd">enrich with scraped growth + financials → + <code>fit_score</code></span></div>
+      <div class="fcarrow">↓</div>
+      <div class="fcgate"><span class="ft">◆ 4 · Vet + dedup — GATE</span><span class="fd">human/score approval · drop opt-outs &amp; already-contacted → <code>Prospect</code></span></div>
+      <div class="fcarrow">↓ <span class="al">approved</span></div>
+      <div class="fcbox proc"><span class="ft">5 · Enroll</span><span class="fd">create <code>Sequence</code> (Enrolled) · upload teaser once → attachment id</span></div>
+      <div class="fcarrow">↓</div>
+
+      <div class="fccycle">
+        <span class="cyhd">FOCUSED FOLLOW-UP CYCLE</span>
+
+        <div class="fcbox proc"><span class="ft">6 · Send letter + attachment</span><span class="fd">initial → FU1 → FU2 · personalized (scraped hook) → logs <code>OutreachEvent</code></span></div>
+        <div class="fcarrow">↓ <span class="al">wait 3–5 / 5–7 business days (scheduler tick)</span></div>
+
+        <div class="fcbranch">
+          <div></div>
+          <div class="mid"><div class="fcdiamond">◆ Response received?</div></div>
+          <div class="right">
+            <span class="ha" style="color:var(--green)">→</span><span class="yes" style="color:var(--green)">YES</span>
+            <div class="fcbox proc" style="border-left-color:var(--green);background:var(--green-bg)">
+              <span class="ft" style="color:var(--green)">✓ Book discovery call → Converted lead</span>
+              <span class="fd">reply detector logs <code>ReplyEvent</code>; halt → Conversion → <b>handoff Step 2</b></span></div>
+          </div>
+        </div>
+        <div class="fcarrow">↓ <span class="al">no</span></div>
+
+        <div class="fcbranch">
+          <div></div>
+          <div class="mid"><div class="fcdiamond">◆ Follow-ups remaining?</div></div>
+          <div class="right">
+            <span class="ha" style="color:var(--steel)">↺</span>
+            <span class="yes" style="color:var(--steel)">YES → next send (back to&nbsp;6)</span>
+          </div>
+        </div>
+        <div class="fcarrow">↓ <span class="al">no — sequence exhausted</span></div>
+
+        <div class="fcbox proc"><span class="ft">7 · Break-up letter</span><span class="fd">final touch → logs <code>OutreachEvent</code></span></div>
+        <div class="fcarrow">↓</div>
+        <div class="fcbox amber"><span class="ft">8 · Nurture list ↺</span><span class="fd">prospect parked — not a dead end</span></div>
+      </div>
+
+      <div class="loopbacknote">↺ next scrape refreshes signals → threshold crossed → re-qualify → re-enter at Enroll (step&nbsp;5)</div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Origination OS · Step 1 system map · June 2026</span>
+    <span>Page 1 of 2 — architecture</span>
+  </footer>
+</div>
+
+<!-- ============ PAGE 2 — TECHNOLOGY STACK & COST ============ -->
+<div class="sheet">
+
+  <header class="mast">
+    <p class="eyebrow">Armitage Associates · Origination OS · Step 1 (Sourcing)</p>
+    <h1>Technology stack — purpose &amp; cost</h1>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--green)"></i>existing — already paid</span>
+      <span><i class="dot" style="background:var(--steel)"></i>new — for this build</span>
+      <span><i class="dot" style="background:var(--amber)"></i>under review</span>
+      <span><i class="dot" style="background:var(--critical)"></i>mandatory gate</span>
+    </div>
+  </header>
+
+  <section>
+    <p class="sub2">Most of the engine is assembled from systems Armitage already runs — so the <b>net new cost is small</b>. Figures are indicative (USD for infra/AI; external SaaS is per existing contract) and should be confirmed against live invoices.</p>
+    <table class="tech">
+      <tr><th style="width:20%">Technology</th><th style="width:34%">Purpose in the architecture</th><th style="width:28%">Cost</th><th style="width:18%">Status</th></tr>
+
+      <tr class="grp"><td colspan="4">Platform &amp; compute</td></tr>
+      <tr><td class="tn">FastMCP (Python)<span class="s">+ simple-salesforce, openpyxl</span></td><td>The MCP server — defines every tool, talks to Salesforce &amp; Graph</td><td><span class="free">$0</span> · open source</td><td><span class="pill exist">existing</span></td></tr>
+      <tr><td class="tn">Render hosting<span class="s">uvicorn ASGI</span></td><td>Runs the server 24/7 so the daily tick &amp; live calls respond</td><td>Free tier <span class="free">$0</span> (sleeps 15 min) → <b>~US$7–25/mo</b> always-on</td><td><span class="pill new">new · low</span></td></tr>
+
+      <tr class="grp"><td colspan="4">System of record &amp; CRM</td></tr>
+      <tr><td class="tn">Salesforce<span class="s">Professional Edition</span></td><td>System of record · CRUD · reports · the email send itself</td><td>Per existing contract <span class="s" style="display:inline">(~US$80–100/user/mo)</span></td><td><span class="pill exist">existing</span></td></tr>
+      <tr><td class="tn">Postgres<span class="s">Render / Supabase</span></td><td><i>Optional</i> — own datastore if you later leave Salesforce</td><td>~US$0–25/mo</td><td><span class="pill new">future option</span></td></tr>
+
+      <tr class="grp"><td colspan="4">Outreach &amp; reply capture</td></tr>
+      <tr><td class="tn">SF SOAP sendEmail</td><td>Bulk personalized email + attachments (5,000/day cap)</td><td><span class="free">$0 marginal</span> · included in Salesforce</td><td><span class="pill exist">existing</span></td></tr>
+      <tr><td class="tn">Microsoft Graph<span class="s">Mail.Read scope</span></td><td>Reply detection — polls the M365 inbox replies land in</td><td><span class="free">$0 marginal</span> · included in M365</td><td><span class="pill new">new · config</span></td></tr>
+      <tr><td class="tn">Azure AD app</td><td>OAuth for Graph (already in the repo)</td><td><span class="free">$0</span></td><td><span class="pill exist">existing</span></td></tr>
+
+      <tr class="grp"><td colspan="4">Data &amp; files</td></tr>
+      <tr><td class="tn">OneDrive / MS Graph</td><td>GOWT Excel storage — the scraper's landing surface</td><td><span class="free">$0 marginal</span> · included in M365</td><td><span class="pill exist">existing</span></td></tr>
+      <tr><td class="tn">SF ContentVersion</td><td>Attachment storage (teasers uploaded once, referenced many)</td><td><span class="free">$0 marginal</span> · included in Salesforce</td><td><span class="pill exist">existing</span></td></tr>
+
+      <tr class="grp"><td colspan="4">Sourcing &amp; signals</td></tr>
+      <tr><td class="tn">Tecala / Originate</td><td>Direct company discovery — the source the whole build depends on</td><td>Commercial contract <b>(confirm with Tecala)</b></td><td><span class="pill gate">mandatory gate</span></td></tr>
+      <tr><td class="tn">Signals scraper<span class="s">armitage-deployed</span></td><td>LinkedIn / FTE / news → GOWT Excel + Growth_Summary__c</td><td>GitHub Actions free tier; <b>+ paid scraping infra if used</b></td><td><span class="pill exist">existing · low</span></td></tr>
+      <tr><td class="tn">HubSpot</td><td>Today's outreach tracking — candidate to retire if SF covers it</td><td>Per existing contract — <b>potential saving</b></td><td><span class="pill review">under review</span></td></tr>
+
+      <tr class="grp"><td colspan="4">Scheduling &amp; automation</td></tr>
+      <tr><td class="tn">GitHub Actions</td><td>Scraper cadence + the daily outreach tick (cron)</td><td>Free tier (2,000 min/mo)</td><td><span class="pill exist">existing</span></td></tr>
+      <tr><td class="tn">Render Cron<span class="s">(alternative)</span></td><td>Daily <code>advance_outreach</code> if not using Actions</td><td>Included with Render plan</td><td><span class="pill new">new · low</span></td></tr>
+
+      <tr class="grp"><td colspan="4">AI / intelligence</td></tr>
+      <tr><td class="tn">Anthropic Claude API</td><td>Personalized letter drafting · deep-dive analysis · screening</td><td><span class="usage">usage-based</span> — see options below</td><td><span class="pill new">new</span></td></tr>
+    </table>
+
+    <div class="models">
+      <div class="mbox">
+        <h4>Claude model options (per 1M tokens)</h4>
+        <table>
+          <tr><td>Opus 4.8 — highest quality (default)</td><td>$5 in / $25 out</td></tr>
+          <tr><td>Sonnet 4.6 — balanced, high-volume</td><td>$3 in / $15 out</td></tr>
+          <tr><td>Haiku 4.5 — cheapest, simple drafts</td><td>$1 in / $5 out</td></tr>
+        </table>
+        <p class="mnote">Default to <b>Opus 4.8</b> for PE-grade letters; drop to Sonnet/Haiku for high-volume mechanical drafting.</p>
+      </div>
+      <div class="mbox">
+        <h4>Indicative cost per prospect</h4>
+        <table>
+          <tr><td>Personalized letter (Opus 4.8)</td><td>~3–5¢</td></tr>
+          <tr><td>Same on Sonnet 4.6</td><td>~2–3¢</td></tr>
+          <tr><td>Same on Haiku 4.5</td><td>~1¢</td></tr>
+        </table>
+        <p class="mnote"><b>Batch API −50%</b> · <b>prompt caching −90%</b> on the repeated template/context. Even at 1,000 prospects/month, AI cost is tens of dollars — not a budget driver.</p>
+      </div>
+    </div>
+
+    <div class="summary">
+      <h4>Cost summary — what this engine actually adds</h4>
+      <ul>
+        <li><b>Already paid for:</b> Salesforce, Microsoft 365, GitHub, the scraper — the bulk of the stack carries <b>no marginal cost</b>.</li>
+        <li><b>Net new spend:</b> Render hosting (~US$7–25/mo) + Claude API usage (cents per prospect) + any paid scraping infra — <b>order of tens of dollars/month</b>.</li>
+        <li class="save"><b>Potential saving:</b> retiring <b>HubSpot</b> (under review) likely <b>exceeds</b> the entire new running cost of this engine.</li>
+        <li class="gate"><b>The real external cost is Tecala</b> — the mandatory data gate, separate from the engine's running cost. Confirm its commercial terms first.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>Origination OS · Step 1 tech stack &amp; cost · June 2026</span>
+    <span>Page 2 of 2 — costs indicative, confirm against contracts</span>
+  </footer>
+</div>
+
+</body>
+</html>
