@@ -133,6 +133,60 @@
   .summary li.gate::before{background:var(--critical);}
   .summary li.save::before{background:var(--amber);}
 
+  /* PAGE 3 — STANDALONE PLATFORM */
+  .planes{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .plane{border:1px solid var(--line);border-radius:7px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;}
+  .plane.human{border-top:3px solid var(--green);}
+  .plane.ai{border-top:3px solid var(--steel);}
+  .plane .ph{font-family:var(--display);font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;}
+  .plane.human .ph{color:var(--green);}
+  .plane.ai .ph{color:var(--steel);}
+  .archnode{border:1px solid var(--line);border-radius:5px;padding:6px 10px;background:var(--paper);font-size:10px;text-align:center;}
+  .archnode b{font-weight:700;}
+  .archnode .s{display:block;color:var(--muted);font-size:8.5px;margin-top:1px;}
+  .archlbl{text-align:center;font-size:8.5px;font-weight:600;color:var(--muted);}
+  .ifaces{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:7px;}
+  .iface{border:1.5px solid var(--ink);border-radius:6px;padding:8px;text-align:center;font-size:10.5px;font-weight:700;}
+  .iface .s{display:block;font-weight:400;color:var(--muted);font-size:8.5px;margin-top:1px;}
+  .convarrow{text-align:center;color:var(--steel);font-size:16px;font-weight:700;padding:4px 0;}
+  .core{border:1.5px solid var(--steel);background:var(--steel-bg);border-radius:7px;padding:9px 12px;text-align:center;margin:0 auto;max-width:600px;}
+  .core .ct{font-family:var(--display);font-weight:700;color:var(--steel);font-size:12px;}
+  .core .cs{font-size:9px;color:var(--muted);margin-top:2px;}
+  .deps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px;}
+  .dep{border:1px solid var(--line);border-top:2px solid var(--ink);border-radius:5px;padding:7px 9px;text-align:center;font-size:9.5px;}
+  .dep b{display:block;font-weight:700;font-size:10px;margin-bottom:1px;}
+  .dep .s{color:var(--muted);font-size:8.5px;line-height:1.3;}
+  .erd2{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .ent2{border:1px solid var(--line);border-top:2px solid var(--steel);border-radius:5px;overflow:hidden;}
+  .ent2 h5{font-family:var(--display);font-size:10px;background:var(--wash);padding:4px 8px;border-bottom:1px solid var(--line);}
+  .ent2 ul{list-style:none;padding:5px 8px;}
+  .ent2 li{font-size:8.5px;color:var(--muted);padding:.5px 0;}
+  .ent2 li b{color:var(--ink);font-weight:600;}
+  .two3{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .mini{border:1px solid var(--line);border-radius:5px;padding:8px 11px;}
+  .mini h4{font-family:var(--display);font-size:10.5px;margin-bottom:5px;}
+  .mini table{border-collapse:collapse;width:100%;font-size:9.5px;}
+  .mini td{padding:3px 4px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .mini td:first-child{font-weight:600;white-space:nowrap;padding-right:8px;}
+  .mini tr:last-child td{border-bottom:none;}
+  .migcol h4{font-family:var(--display);font-size:10.5px;margin-bottom:5px;}
+  .migcol.yes h4{color:var(--green);}
+  .migcol.no h4{color:var(--critical);}
+  .migcol ul{list-style:none;}
+  .migcol li{position:relative;padding:1.5px 0 1.5px 14px;font-size:9.5px;line-height:1.3;}
+  .migcol li::before{content:"";position:absolute;left:2px;top:7px;width:4px;height:4px;border-radius:50%;}
+  .migcol.yes li::before{background:var(--green);}
+  .migcol.no li::before{background:var(--critical);}
+  .phaserow{display:grid;grid-template-columns:90px 1fr;gap:10px;border-bottom:1px solid var(--line);padding:6px 0;align-items:baseline;}
+  .phaserow:last-child{border-bottom:none;}
+  .phaserow .pt{font-family:var(--display);font-weight:700;font-size:10px;color:var(--steel);}
+  .phaserow .pb{font-size:9.5px;line-height:1.35;}
+  .phaserow .pb b{font-weight:600;}
+  .sigflow{border:1.5px solid var(--steel);background:var(--steel-bg);border-radius:6px;padding:9px 14px;margin-top:11px;
+    font-size:10px;line-height:1.6;text-align:center;color:var(--ink);}
+  .sigflow .step{font-weight:700;color:var(--steel);}
+  .sigflow code{font-family:var(--display);font-size:9px;background:#fff;border:1px solid var(--line);border-radius:3px;padding:0 4px;}
+
   @media print{body{background:#fff;padding:0;}.sheet{box-shadow:none;margin:0 0 8mm;width:auto;max-width:none;}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}section{break-inside:avoid;}}
 </style>
@@ -258,7 +312,7 @@
 
   <footer>
     <span>Origination OS · Step 1 system map · June 2026</span>
-    <span>Page 1 of 2 — architecture</span>
+    <span>Page 1 of 3 — outreach architecture &amp; flow</span>
   </footer>
 </div>
 
@@ -345,7 +399,211 @@
 
   <footer>
     <span>Origination OS · Step 1 tech stack &amp; cost · June 2026</span>
-    <span>Page 2 of 2 — costs indicative, confirm against contracts</span>
+    <span>Page 2 of 3 — costs indicative, confirm against contracts</span>
+  </footer>
+</div>
+
+<!-- ============ PAGE 3 — STANDALONE PLATFORM (POST-SALESFORCE) ============ -->
+<div class="sheet">
+
+  <header class="mast">
+    <p class="eyebrow">Armitage Associates · Origination OS · Standalone platform</p>
+    <h1>Full system design — the platform that replaces Salesforce</h1>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--green)"></i>human plane</span>
+      <span><i class="dot" style="background:var(--steel)"></i>AI / agent plane</span>
+      <span><i class="dot" style="background:var(--ink)"></i>shared backend</span>
+      <span><i class="dot" style="background:var(--critical)"></i>rebuild / gate</span>
+    </div>
+    <p class="sub2" style="margin-top:8px">Salesforce &amp; HubSpot retired. The platform runs <b>natively on Azure</b> — its own data (Azure Database for PostgreSQL), its own UI (Next.js), sending/receiving through Microsoft 365 — all inside one Entra ID tenant with AU data residency. Two interfaces sit on one backend: a <b>REST API</b> for the team, an <b>MCP server</b> for Claude.</p>
+  </header>
+
+  <!-- A · ARCHITECTURE -->
+  <section>
+    <h2><span class="n">A</span>Architecture — two planes, one backend</h2>
+    <div class="planes">
+      <div class="plane human">
+        <span class="ph">Human plane</span>
+        <div class="archnode"><b>Next.js frontend</b><span class="s">pipeline · prospect profiles · sequence status · notes</span></div>
+        <div class="archlbl">↓ &nbsp; REST / HTTPS &nbsp;·&nbsp; Entra ID SSO login</div>
+      </div>
+      <div class="plane ai">
+        <span class="ph">AI / agent plane</span>
+        <div class="archnode"><b>Claude Desktop · screener skill · automations</b><span class="s">natural-language &amp; agentic access</span></div>
+        <div class="archlbl">↓ &nbsp; MCP (Streamable HTTP) &nbsp;·&nbsp; Bearer token</div>
+      </div>
+    </div>
+    <div class="ifaces">
+      <div class="iface">FastAPI REST API<span class="s">CRUD for the UI</span></div>
+      <div class="iface">MCP server (FastMCP)<span class="s">tools for Claude · holds credentials</span></div>
+    </div>
+    <div class="convarrow">↓ &nbsp; both call the same logic &nbsp; ↓</div>
+    <div class="core">
+      <div class="ct">Backend core — service layer</div>
+      <div class="cs">business logic in one place: qualify · enroll · sequence state machine · scheduler · personalize · reply-match</div>
+    </div>
+    <div class="convarrow">↓</div>
+    <div class="deps">
+      <div class="dep"><b>Azure DB for PostgreSQL</b><span class="s">system of record — all data</span></div>
+      <div class="dep"><b>Microsoft Graph</b><span class="s">send + receive email (M365)</span></div>
+      <div class="dep"><b>Claude · Azure AI Foundry</b><span class="s">drafting · screening · deep-dive</span></div>
+      <div class="dep"><b>Tecala + news scraper</b><span class="s">growth signals → re-approach</span></div>
+    </div>
+  </section>
+
+  <!-- B · STACK -->
+  <section>
+    <h2><span class="n">B</span>Technology stack</h2>
+    <table class="tech">
+      <tr><th style="width:20%">Layer</th><th style="width:38%">Technology (Azure-native where it maps)</th><th>Role</th></tr>
+      <tr><td class="tn">Frontend</td><td><b>Next.js (React)</b> on <b>Azure Static Web Apps</b></td><td>The team's working UI — replaces the Salesforce screens</td></tr>
+      <tr><td class="tn">Backend + MCP</td><td><b>FastAPI + FastMCP</b> on <b>Azure Container Apps</b></td><td>One backend, two heads — REST for the UI, MCP tools for Claude</td></tr>
+      <tr><td class="tn">Database</td><td><b>Azure Database for PostgreSQL</b> (Flexible Server)</td><td>System of record · Entra ID auth · AU region. SQLAlchemy/Alembic</td></tr>
+      <tr><td class="tn">File storage</td><td><b>Azure Blob Storage</b></td><td>Teasers · attachments · exports</td></tr>
+      <tr><td class="tn">Email send + receive</td><td><b>Microsoft Graph</b> (Mail.Send / Mail.Read)</td><td>Bulk outreach + attachments + reply capture, from M365</td></tr>
+      <tr><td class="tn">AI</td><td><b>Anthropic Claude</b> via <b>Azure AI Foundry</b> <span class="s" style="display:inline">(or first-party API)</span></td><td>Personalized letters · screening · deep-dive</td></tr>
+      <tr><td class="tn">Auth (team)</td><td><b>Microsoft Entra ID SSO</b></td><td>Team signs in with their M365 account</td></tr>
+      <tr><td class="tn">Secrets</td><td><b>Azure Key Vault</b></td><td>Graph tokens · Claude key · DB credentials</td></tr>
+      <tr><td class="tn">Scheduler</td><td><b>Azure Container Apps Jobs</b> (cron)</td><td>Daily outreach tick (the scraper stays on GitHub Actions)</td></tr>
+      <tr><td class="tn">Observability</td><td><b>Azure Monitor / Application Insights</b></td><td>Logs · metrics · alerts</td></tr>
+      <tr><td class="tn">Containers</td><td><b>Docker</b> + <b>Azure Container Registry</b></td><td>Build &amp; ship images</td></tr>
+    </table>
+    <p class="relnote" style="font-size:9.5px;color:var(--muted);margin-top:7px"><b>One cloud:</b> the whole platform lives in a single Azure tenant under Entra ID governance, pinned to an Australian region. Only two non-Azure pieces remain — both deliberate: <b>Microsoft Graph</b> (it <i>is</i> Microsoft, just the M365 side) and the <b>GitHub Actions</b> scraper (already running, no reason to move it).</p>
+  </section>
+
+  <!-- C · DATA MODEL -->
+  <section>
+    <h2><span class="n">C</span>Data model (Azure Database for PostgreSQL — the new system of record)</h2>
+    <div class="erd2">
+      <div class="ent2"><h5>account</h5><ul><li><b>name</b>, industry</li><li>location, website</li><li>source · direct/intro</li></ul></div>
+      <div class="ent2"><h5>contact</h5><ul><li><b>name, email</b>, title</li><li><b>account_id</b> (FK)</li><li>opted_out</li></ul></div>
+      <div class="ent2"><h5>deal</h5><ul><li><b>account_id</b> (FK)</li><li>stage, value, owner</li><li>gowt_priority</li></ul></div>
+      <div class="ent2"><h5>sequence</h5><ul><li><b>contact_id, deal_id</b></li><li><b>status, step</b></li><li><b>next_action_date</b></li><li>last_sent, last_reply</li></ul></div>
+      <div class="ent2"><h5>outreach_event</h5><ul><li><b>sequence_id</b> (FK)</li><li>step, template</li><li>sent_at, message_id</li><li>opened_at <i>(pixel)</i></li></ul></div>
+      <div class="ent2"><h5>reply_event</h5><ul><li><b>sequence_id</b> (FK)</li><li>received_at, from</li><li>classification</li></ul></div>
+      <div class="ent2"><h5>note / activity</h5><ul><li><b>entity_id</b> (poly)</li><li>body, author</li><li>created_at</li></ul></div>
+      <div class="ent2"><h5>app_user</h5><ul><li><b>entra_id</b></li><li>name, role</li><li>(SSO identity)</li></ul></div>
+    </div>
+    <p class="relnote" style="font-size:9.5px;color:var(--muted);margin-top:7px"><b>Relationships:</b> account 1·N contact · account 1·N deal · contact 1·N sequence · sequence 1·N outreach_event &amp; reply_event. The <b>event tables are immutable</b> — they are the audit trail + the "never pitch twice" history that Salesforce's activity timeline used to provide.</p>
+  </section>
+
+  <!-- D · EMAIL + AI -->
+  <section>
+    <h2><span class="n">D</span>Email engine &amp; AI integration</h2>
+    <div class="two3">
+      <div class="mini">
+        <h4>Email via Microsoft Graph (replaces Salesforce send)</h4>
+        <table>
+          <tr><td>Send</td><td><code>sendMail</code> (Mail.Send) from the M365 mailbox</td></tr>
+          <tr><td>Attachments</td><td>up to ~150 MB (inline ≤3 MB / upload session)</td></tr>
+          <tr><td>Daily cap</td><td>~10,000 recipients / mailbox / day</td></tr>
+          <tr><td>Replies</td><td>land in the same mailbox → <code>Mail.Read</code> poll / webhook</td></tr>
+          <tr><td>Opens</td><td>tracking pixel served by the backend (replaces HubSpot)</td></tr>
+          <tr><td>Opt-out</td><td>unsubscribe link → endpoint flips <code>opted_out</code></td></tr>
+        </table>
+      </div>
+      <div class="mini">
+        <h4>Two AI paths — don't confuse them</h4>
+        <table>
+          <tr><td>In-app</td><td><b>Backend → Claude API directly</b> (Anthropic SDK) to draft a personalized letter. No MCP.</td></tr>
+          <tr><td>Agentic</td><td><b>Claude → MCP server → backend.</b> You/skills say "screen &amp; enroll"; Claude picks the tool.</td></tr>
+          <tr><td>Why MCP</td><td>Shared across clients (Desktop, skills, jobs); the <b>secrets live on the server</b>, clients send only a Bearer token.</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- E · SIGNALS -->
+  <section>
+    <h2><span class="n">E</span>Signals &amp; growth detection — the re-approach trigger</h2>
+    <p class="sub2">How "this GOWT company has grown enough to re-approach" is actually computed. <b>Two layers:</b> a quantitative <b>trigger</b> (Tecala financials vs history) and a qualitative <b>context</b> layer (filtered news). The trigger fires on the numbers; the news explains why.</p>
+    <div class="two3">
+      <div class="mini">
+        <h4>① Primary trigger — Tecala financials</h4>
+        <table>
+          <tr><td>Source</td><td>Tecala / Originate (the mandatory gate)</td></tr>
+          <tr><td>Pull</td><td><b>FTE · revenue · EBITDA</b>, monthly</td></tr>
+          <tr><td>Method</td><td>snapshot → Postgres → <b>delta vs historical</b> → threshold</td></tr>
+          <tr><td>Anchor</td><td><b>FTE</b> (reliable) · revenue if real · <b>EBITDA = context only</b> (often estimated for private AU cos)</td></tr>
+        </table>
+      </div>
+      <div class="mini">
+        <h4>② Context layer — filtered news</h4>
+        <table>
+          <tr><td>Source</td><td>existing news scraper <span class="s" style="display:inline">(or Firmable CSV — compliant alt)</span></td></tr>
+          <tr><td>Method</td><td>Claude <b>growth-signal filter</b> → tagged events</td></tr>
+          <tr><td>Role</td><td>the <b>"why"</b> — contract win · funding · partnership. Context, <b>not</b> the trigger</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="sigflow">
+      <span class="step">Monthly:</span> Tecala pull + news scrape →
+      <span class="step">snapshot</span> {fte, revenue, ebitda} to Postgres + Claude-filtered news →
+      <span class="step">diff vs history</span> →
+      threshold (e.g. <code>FTE +20% / 2 quarters</code>) →
+      <span class="step">flag re-approach</span> · news attached as the "why"
+    </div>
+    <div class="summary" style="margin-top:11px;border-color:var(--amber);background:var(--amber-bg)">
+      <h4 style="color:var(--amber)">Two things to lock down</h4>
+      <ul>
+        <li class="save"><b>Verify Tecala's revenue/EBITDA provenance.</b> If estimated, the delta is noise — <b>anchor the trigger on FTE</b>, treat EBITDA as context.</li>
+        <li class="save"><b>Scraper vs Firmable CSV for news.</b> Own scraper = you control the pipe (ToS/brittleness risk); Firmable CSV = compliant, manual monthly. News is secondary, so either works — choose deliberately.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- F · MIGRATION -->
+  <section>
+    <h2><span class="n">F</span>Migration — Salesforce → Azure Database for PostgreSQL (one-time)</h2>
+    <p class="sub2">The existing Salesforce MCP becomes the migration tool — it already reads every object. Org is small: ~70k records, 4 custom objects, 14 files.</p>
+    <div class="two3">
+      <div class="migcol yes">
+        <h4>✓ Migrates cleanly (data)</h4>
+        <ul>
+          <li>Accounts · Contacts · Opportunities · OCR (~31k)</li>
+          <li>Tasks / Events / Notes — activity history (~36k)</li>
+          <li>Files (14 ContentDocuments)</li>
+          <li>Relationships — remap 18-char IDs → Postgres keys</li>
+          <li>The <code>fid__c</code> legacy fields — via the existing field map</li>
+        </ul>
+      </div>
+      <div class="migcol no">
+        <h4>✗ Rebuilt, not migrated (behaviour)</h4>
+        <ul>
+          <li>Automation — flows, validation rules, triggers</li>
+          <li>Reports &amp; dashboards (data moves; logic rebuilt)</li>
+          <li>Formula / roll-up fields — re-implement the calc</li>
+          <li>Field history beyond Salesforce's retention — already lost</li>
+          <li>Permissions / sharing → Entra ID + app roles</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- G · PHASES + RISKS -->
+  <section>
+    <h2><span class="n">G</span>Build phasing &amp; key risks</h2>
+    <div class="two3">
+      <div>
+        <div class="phaserow"><span class="pt">Wks 1–6</span><span class="pb"><b>Outreach engine</b>, running <i>alongside</i> Salesforce. Value lands early; SF stays the safety net.</span></div>
+        <div class="phaserow"><span class="pt">Mths 2–4</span><span class="pb"><b>Azure backend + Next.js UI</b>, mirroring SF data. Build the team's working screens.</span></div>
+        <div class="phaserow"><span class="pt">Mths 4–6+</span><span class="pb"><b>Migrate &amp; cut over.</b> Retire Salesforce only once UI + reporting reach parity.</span></div>
+      </div>
+      <div class="summary" style="margin-top:0">
+        <h4>Key risks to manage</h4>
+        <ul>
+          <li class="gate"><b>Tecala access</b> — the mandatory data gate; blocks even week 1.</li>
+          <li class="save"><b>Email deliverability</b> — per-mailbox cap + reputation; the main operational risk.</li>
+          <li><b>Scope creep</b> — "origination workflow" (~6 mo) vs "all of Salesforce" (12 mo+). Hold the line.</li>
+          <li><b>Ownership</b> — you now maintain it; key-person risk on a small team.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Origination OS · Standalone platform design · June 2026</span>
+    <span>Page 3 of 3 — post-Salesforce architecture</span>
   </footer>
 </div>
 
