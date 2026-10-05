@@ -1,0 +1,78 @@
+{
+  "_comment": "Illustrative spec for a fictional company. Use as a template; replace every value.",
+  "project_name": "PROJECT EXAMPLE",
+  "company_name": "Example Testing Labs",
+  "author_initials": "APC / RMD",
+  "date": "October 2026",
+  "source_note": "Source: Example Testing Labs IM (Sep-2026); management accounts; AA analysis",
+  "fin_note": "FY23A-FY26A unaudited management accounts, June year end; FY27F is management forecast.",
+
+  "lead_para": "Independent testing, inspection and certification lab for building, product and traffic-enforcement clients across VIC and NSW. Founded 1998; Melbourne HQ; ~95 FTE across three NATA-accredited sites. FY26A revenue $21.0m, adj. EBITDA $2.3m (11.0% margin).",
+  "revenue_streams_intro": "FY26A $21.0m; 71.1% from two compliance-driven testing divisions.",
+  "revenue_streams": [
+    {"name": "Acoustics & Vibration", "pct": 47.1, "value_m": 9.9,
+     "description": "Tests and models noise, vibration and wind on buildings, infrastructure and machinery, required for planning approval; fee-for-service"},
+    {"name": "Safety & Performance", "pct": 24.0, "value_m": 5.0,
+     "description": "NATA-accredited product testing and certification required before goods can be legally sold; per-test fee"},
+    {"name": "Environmental Monitoring", "pct": 15.2, "value_m": 3.2,
+     "description": "Installs and runs air-quality and dust monitors on construction sites to meet EPA permit conditions; monthly monitoring fee"},
+    {"name": "Traffic Systems", "pct": 13.7, "value_m": 2.9,
+     "description": "Tests and calibrates speed and red-light cameras so readings hold up in court; long-term contract with the Victorian Government, its only customer in this division"}
+  ],
+  "business_items": [
+    {"label": "Revenue model", "text": "Fee-for-service and per-test; ~35% from repeat panel work, none contracted beyond the Traffic contract; GP margin 48.0%; no retention data disclosed."},
+    {"label": "Go-to-market", "text": "Wins work via government and tier-1 builder panels; NATA accreditation is the licence to operate; top 10 clients 41.0% of revenue."},
+    {"label": "Demand driver", "text": "Mandatory testing under the NCC and Australian Consumer Law; infrastructure pipeline sustains acoustic work."}
+  ],
+
+  "financials": {
+    "periods": ["FY23A", "FY24A", "FY25A", "FY26A", "FY27F"],
+    "revenue": [18.1, 19.2, 20.8, 21.0, 22.6],
+    "earnings": [2.6, 2.8, 2.8, 2.3, 2.7],
+    "earnings_metric": "Adj. EBITDA",
+    "gross_margin_pct": [47.5, 48.2, 48.9, 48.0, 48.5]
+  },
+  "revenue_mix": [
+    {"label": "Acoustics", "pct": 47.1},
+    {"label": "Safety", "pct": 24.0},
+    {"label": "Environmental", "pct": 15.2},
+    {"label": "Traffic", "pct": 13.7}
+  ],
+  "chart_notes": [
+    "Unaudited management accounts; FY26A adj. EBITDA normalised by $0.4m (17.4% of reported)",
+    "Revenue CAGR 5.1% flatters: FY26A growth +1.0% as Acoustics volumes softened",
+    "GP margin steady at ~48% but adj. EBITDA margin down from 14.4% to 11.0% on overhead growth",
+    "Site lease held by vendors' related-party trust, outside the transaction perimeter",
+    "FY27F needs +7.6% revenue and margin recovery to 11.9%"
+  ],
+
+  "transaction": {
+    "lead": "Two founders (50.0% each) seeking a full exit; neither intends to roll equity or stay beyond a 12-month handover. Adj. EBITDA $2.3m sits at the bottom of the $2-10m band. Mandate misfit: 100% exit with no owner-operator rolling equity.",
+    "source": "Intermediated: Example Advisory (Melbourne), Jane Citizen; IM received 15-Sep-2026 by APC and RMD; indicative bids due 30-Oct-2026.",
+    "recommendation": {
+      "verdict": "Pass",
+      "rationale": "Full exit with no rolling founder is outside mandate; declining adj. EBITDA margin and a single-customer Traffic division add risk; compliance-driven demand is the main attraction",
+      "gates": [
+        "Revisit only if a founder will roll at least 20.0% and stay three years",
+        "Confirm FY26A normalisations with the advisor",
+        "Test Traffic contract renewal terms"
+      ]
+    },
+    "other_niches": "IM flags fire-safety testing and building-envelope consulting. Adjacent AA thematics: NATA-accredited calibration labs, environmental compliance monitoring for construction; no portfolio company overlap."
+  },
+
+  "thesis": {
+    "growing_high_margin": {"rating": "N", "evidence": "Revenue CAGR 5.1% FY23A-FY26A, +1.0% in FY26A; adj. EBITDA -17.9% to $2.3m at 11.0%. A 48.0% gross margin does not reach the bottom line."},
+    "recurring_revenue": {"rating": "N", "evidence": "Fee-for-service and per-test; only the Traffic contract (13.7%) is contracted. Panel repeat work is ~35% but uncommitted."},
+    "differentiated": {"rating": "Y/TBC", "evidence": "NATA accreditation and court-grade calibration are hard to replicate. TBC: win rates and pricing power on panel tenders."},
+    "large_growing_market": {"rating": "Y", "evidence": "Testing is mandated under the NCC and Australian Consumer Law, so demand tracks construction and product launches. Market size not quantified in the IM."},
+    "fragmented_end_market": {"rating": "Y", "evidence": "Customers are builders, manufacturers and government; top 10 are 41.0% of revenue, with one government client in Traffic."}
+  },
+  "porter": {
+    "supplier_power": {"rating": "M", "commentary": "Accredited acoustic engineers are scarce and wage inflation is running ahead of fees. Equipment is commoditised."},
+    "buyer_power": {"rating": "M/H", "commentary": "Panel tenders and tier-1 builders squeeze price. Traffic has a single government buyer."},
+    "competitive_rivalry": {"rating": "M", "commentary": "Competes with national TIC groups and boutique labs. Accreditation limits the field per test type."},
+    "threat_of_substitutes": {"rating": "L", "commentary": "Testing is legally mandated and must be independent. Some modelling could move in-house at large engineering firms."},
+    "threat_of_new_entrants": {"rating": "L/M", "commentary": "NATA accreditation and panel track record take years to build. Well-funded TIC groups could enter by acquisition."}
+  }
+}

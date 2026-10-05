@@ -120,6 +120,15 @@ salesforce-mcp/
 
 Salesforce archives Tasks and Events older than about a year, and normal SOQL does not return them. In this org that is ~75% of Tasks and ~96% of Events, which is most historical meeting notes. `get_notes`, `get_activities` and `get_company_overview` always include archived activities (via `queryAll`) and also match activities rolled up to an Account or linked to a Contact as a non-primary invitee. For raw SOQL on Task/Event, pass `include_archived=True` and filter `IsDeleted = false`.
 
+## Investment Screener Skill
+
+`skills/investment-screener/` is a Claude skill that produces AA-format two-page screening memos (.docx). It uses this MCP's tools to check Salesforce for prior contact. See its `INSTALL.md` to install it and `SKILL.md` for the format. The build script can also be run directly:
+
+```bash
+pip install python-docx matplotlib numpy
+python skills/investment-screener/scripts/build_screener.py skills/investment-screener/examples/example_spec.json -o ~/Desktop/
+```
+
 ## Setup for Team Members
 
 Add this to your `claude_desktop_config.json` and restart Claude Desktop:
