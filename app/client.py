@@ -2,6 +2,8 @@ import os
 import requests
 from simple_salesforce import Salesforce
 
+API_VERSION = "62.0"
+
 
 def get_sf_client() -> Salesforce:
     """Create an authenticated Salesforce client.
@@ -21,10 +23,11 @@ def get_sf_client() -> Salesforce:
                 "client_id": consumer_key,
                 "client_secret": consumer_secret,
             },
+            timeout=30,
         )
         token_response.raise_for_status()
         access_token = token_response.json()["access_token"]
-        return Salesforce(instance_url=domain, session_id=access_token)
+        return Salesforce(instance_url=domain, session_id=access_token, version=API_VERSION)
 
     return Salesforce(
         username=os.environ["SALESFORCE_USERNAME"],
@@ -32,4 +35,5 @@ def get_sf_client() -> Salesforce:
         security_token=os.environ["SALESFORCE_SECURITY_TOKEN"],
         consumer_key=consumer_key or "",
         consumer_secret=consumer_secret or "",
+        version=API_VERSION,
     )

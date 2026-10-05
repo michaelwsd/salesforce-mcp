@@ -1,3 +1,5 @@
+import re
+
 from app import mcp, logger
 from app.client import get_sf_client
 
@@ -22,17 +24,30 @@ def bulk_upsert(object_type: str, external_id_field: str, records: list[dict]) -
 
 
 @mcp.tool()
-def bulk_query(soql: str) -> list[dict]:
+def bulk_query(soql: str, include_archived: bool = False, max_records: int = 50000) -> dict:
     """Run a bulk async query for large datasets.
 
-    Use this instead of regular query() when you expect more than 10,000 records.
-    The Bulk API runs the query asynchronously on Salesforce's side and returns
-    all results without pagination limits.
+    Use this instead of query() when you expect tens of thousands of records.
+    The Bulk API runs the query asynchronously on Salesforce's side. It does not
+    support subqueries, aggregates (COUNT, GROUP BY), or FIELDS(ALL).
 
     Args:
         soql: The SOQL query string
+        include_archived: Use queryAll, which also returns archived Tasks/Events
+            (older than ~1 year) and soft-deleted records. Add
+            "IsDeleted = false" to the WHERE clause to exclude deleted ones.
+        max_records: Maximum records to return (default 50000). total reports
+            the full count when truncated.
     """
+    match = re.search(r"\bFROM\s+(\w+)", soql, re.IGNORECASE)
+    if not match:
+        return {"error": "Could not find a FROM clause in the query."}
     sf = get_sf_client()
-    object_type = soql.strip().split("FROM")[1].strip().split()[0]
-    sobject = getattr(sf.bulk, object_type)
-    return sobject.query(soql)
+    sobject = getattr(sf.bulk, match.group(1))
+    records = sobject.query_all(soql) if include_archived else sobject.query(soql)
+    return {
+        "total": len(records),
+        "returned": min(len(records), max_records),
+        "truncated": len(records) > max_records,
+        "records": records[:max_records],
+    }

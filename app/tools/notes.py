@@ -1,5 +1,10 @@
 from app import mcp
+from app.activities import fetch_activities, fetch_emails
 from app.client import get_sf_client
+
+
+def _owner(record: dict) -> str | None:
+    return (record.get("Owner") or {}).get("Name")
 
 
 @mcp.tool()
@@ -15,6 +20,11 @@ def get_notes(record_id: str, since: str | None = None, limit: int = 20) -> dict
     3. Classic Notes — legacy Note objects linked via ParentId
     4. ContentNotes — enhanced notes linked via ContentDocumentLink
 
+    Includes archived activities (older than ~1 year), which hold most of the
+    historical meeting notes. For Accounts, also includes activities logged on
+    the Account's Opportunities and Contacts. For Contacts/Leads, includes
+    activities where they are any invitee, not just the primary contact.
+
     Always call this tool when asked about notes for a company or deal.
 
     Args:
@@ -26,30 +36,18 @@ def get_notes(record_id: str, since: str | None = None, limit: int = 20) -> dict
     """
     sf = get_sf_client()
 
-    prefix = record_id[:3]
-    is_who = prefix in ("003", "00Q")
+    # Description is a long text area and can't be filtered in SOQL, so fetch
+    # all linked activities and keep only those with notes before limiting.
+    events = fetch_activities(
+        sf, "Event", record_id, "Subject, StartDateTime, Description, Owner.Name",
+        "StartDateTime", since=since,
+    )
+    tasks = fetch_activities(
+        sf, "Task", record_id, "Subject, ActivityDate, Description, Owner.Name",
+        "ActivityDate", since=since,
+    )
 
-    if is_who:
-        link_filter = f"WhoId = '{record_id}'"
-    else:
-        link_filter = f"WhatId = '{record_id}'"
-
-    date_filter_event = f" AND StartDateTime >= {since}T00:00:00Z" if since else ""
-    date_filter_task = f" AND ActivityDate >= {since}" if since else ""
     date_filter_note = f" AND CreatedDate >= {since}T00:00:00Z" if since else ""
-
-    events = sf.query(
-        f"SELECT Id, Subject, StartDateTime, Description, Owner.Name "
-        f"FROM Event WHERE {link_filter}{date_filter_event} "
-        f"ORDER BY StartDateTime DESC NULLS LAST LIMIT {limit}"
-    )
-
-    tasks = sf.query(
-        f"SELECT Id, Subject, ActivityDate, Description, Owner.Name "
-        f"FROM Task WHERE {link_filter}{date_filter_task} "
-        f"ORDER BY ActivityDate DESC NULLS LAST LIMIT {limit}"
-    )
-
     classic_notes = sf.query(
         "SELECT Id, Title, Body, CreatedDate, CreatedBy.Name "
         "FROM Note "
@@ -63,103 +61,139 @@ def get_notes(record_id: str, since: str | None = None, limit: int = 20) -> dict
         "ContentDocument.CreatedBy.Name "
         "FROM ContentDocumentLink "
         f"WHERE LinkedEntityId = '{record_id}' "
-        "AND ContentDocument.FileType = 'SNOTE'"
+        "AND ContentDocument.FileType = 'SNOTE' "
+        f"LIMIT {limit}"
     )
 
     meeting_notes = [
         {
             "type": "event",
+            "id": e["Id"],
             "subject": e["Subject"],
             "date": e.get("StartDateTime"),
-            "description": e.get("Description"),
-            "owner": e.get("Owner", {}).get("Name") if e.get("Owner") else None,
+            "description": e["Description"],
+            "owner": _owner(e),
         }
-        for e in events["records"]
+        for e in events
         if e.get("Description")
     ]
 
     task_notes = [
         {
             "type": "task",
+            "id": t["Id"],
             "subject": t["Subject"],
             "date": t.get("ActivityDate"),
-            "description": t.get("Description"),
-            "owner": t.get("Owner", {}).get("Name") if t.get("Owner") else None,
+            "description": t["Description"],
+            "owner": _owner(t),
         }
-        for t in tasks["records"]
+        for t in tasks
         if t.get("Description")
     ]
 
     return {
-        "meeting_notes": meeting_notes,
-        "task_notes": task_notes,
+        "meeting_notes": meeting_notes[:limit],
+        "task_notes": task_notes[:limit],
         "classic_notes": classic_notes["records"],
         "content_notes": content_notes["records"],
-        "total": len(meeting_notes) + len(task_notes) + classic_notes["totalSize"] + content_notes["totalSize"],
+        "total_available": {
+            "meeting_notes": len(meeting_notes),
+            "task_notes": len(task_notes),
+            "classic_notes": classic_notes["totalSize"],
+            "content_notes": content_notes["totalSize"],
+        },
     }
 
 
 @mcp.tool()
-def get_activities(record_id: str, include_description: bool = True) -> dict:
+def get_activities(
+    record_id: str,
+    include_description: bool = True,
+    since: str | None = None,
+    limit: int = 200,
+) -> dict:
     """Get all tasks and events (meetings, calls, follow-ups) for a record.
 
     Meeting notes are stored in Event/Task Description fields — this is where
     APC notes, call logs, and meeting summaries live. Always check Description.
 
-    Searches by WhatId (Opportunity/Account) and WhoId (Contact/Lead) to catch
-    all related activities regardless of how they were linked.
+    Includes archived activities (older than ~1 year). Finds activities linked
+    by WhatId (Opportunity/Account), AccountId (rolled up from an Account's
+    Opportunities and Contacts), WhoId and Task/EventRelation (Contact/Lead as
+    primary contact or any invitee).
 
     Args:
         record_id: The ID of the record (Opportunity, Account, Contact, or Lead)
         include_description: Whether to include the full Description text (default True)
+        since: Optional YYYY-MM-DD — only activities on or after this date
+        limit: Maximum tasks and maximum events to return (default 200 each)
     """
     sf = get_sf_client()
     desc_field = ", Description" if include_description else ""
 
-    prefix = record_id[:3]
-    is_who = prefix in ("003", "00Q")
-
-    if is_who:
-        who_filter = f"WhoId = '{record_id}'"
-        tasks = sf.query(
-            f"SELECT Id, Subject, ActivityDate, Status, Priority, "
-            f"Owner.Name, WhatId{desc_field} "
-            f"FROM Task WHERE {who_filter} "
-            f"ORDER BY ActivityDate DESC NULLS LAST"
-        )
-        events = sf.query(
-            f"SELECT Id, Subject, StartDateTime, EndDateTime, Location, "
-            f"Owner.Name, WhatId{desc_field} "
-            f"FROM Event WHERE {who_filter} "
-            f"ORDER BY StartDateTime DESC NULLS LAST"
-        )
-    else:
-        tasks = sf.query(
-            f"SELECT Id, Subject, ActivityDate, Status, Priority, "
-            f"Owner.Name, Who.Name{desc_field} "
-            f"FROM Task "
-            f"WHERE WhatId = '{record_id}' "
-            f"ORDER BY ActivityDate DESC NULLS LAST"
-        )
-        events = sf.query(
-            f"SELECT Id, Subject, StartDateTime, EndDateTime, Location, "
-            f"Owner.Name, Who.Name{desc_field} "
-            f"FROM Event "
-            f"WHERE WhatId = '{record_id}' "
-            f"ORDER BY StartDateTime DESC NULLS LAST"
-        )
+    tasks = fetch_activities(
+        sf, "Task", record_id,
+        f"Subject, ActivityDate, Status, Priority, TaskSubtype, Owner.Name, "
+        f"Who.Name, What.Name, IsArchived{desc_field}",
+        "ActivityDate", since=since,
+    )
+    events = fetch_activities(
+        sf, "Event", record_id,
+        f"Subject, StartDateTime, EndDateTime, Location, Owner.Name, "
+        f"Who.Name, What.Name, IsArchived{desc_field}",
+        "StartDateTime", since=since,
+    )
 
     return {
-        "tasks": tasks["records"],
-        "events": events["records"],
-        "total_tasks": tasks["totalSize"],
-        "total_events": events["totalSize"],
+        "tasks": tasks[:limit],
+        "events": events[:limit],
+        "total_tasks": len(tasks),
+        "total_events": len(events),
     }
 
 
 @mcp.tool()
-def get_feed(record_id: str) -> dict:
-    """Get Chatter feed posts for a record.
+def get_emails(
+    record_id: str,
+    since: str | None = None,
+    limit: int = 50,
+    include_body: bool = True,
+    max_body_chars: int = 5000,
+) -> dict:
+    """Get emails (EmailMessage) logged against a record.
+
+    Emails are a large share of the org's history (~90k messages): intro emails,
+    advisor correspondence, deal teasers, and replies. For Opportunities and
+    Accounts, matches emails whose Related To is the record. For Contacts,
+    Leads, and Users, matches emails where they are the sender or any recipient.
+
+    Args:
+        record_id: Opportunity, Account, Contact, Lead, or User ID
+        since: Optional YYYY-MM-DD — only emails on or after this date
+        limit: Maximum emails to return, newest first (default 50)
+        include_body: Include the plain-text body (default True)
+        max_body_chars: Truncate each body to this many characters (default 5000)
+    """
+    sf = get_sf_client()
+    body = ", TextBody" if include_body else ""
+    emails = fetch_emails(
+        sf, record_id,
+        "Subject, MessageDate, FromName, FromAddress, ToAddress, CcAddress, "
+        f"Incoming, HasAttachment, RelatedToId, ActivityId{body}",
+        since=since,
+    )
+    returned = emails[:limit]
+    if include_body:
+        for e in returned:
+            text = e.get("TextBody") or ""
+            if len(text) > max_body_chars:
+                e["TextBody"] = text[:max_body_chars] + f"\n...[truncated, {len(text)} chars total]"
+    return {"emails": returned, "total": len(emails), "returned": len(returned)}
+
+
+@mcp.tool()
+def get_feed(record_id: str, limit: int = 50) -> dict:
+    """Get Chatter feed posts (with their comments) for a record.
 
     The Chatter feed captures comments, status updates, and tracked field
     changes posted by team members on a record. Useful for understanding
@@ -167,41 +201,56 @@ def get_feed(record_id: str) -> dict:
 
     Args:
         record_id: The ID of the record to get feed items for
+        limit: Maximum feed posts to return, newest first (default 50)
     """
     sf = get_sf_client()
-    feed_items = sf.query(
-        "SELECT Id, Body, Type, Title, CreatedDate, CreatedBy.Name, "
-        "CommentCount, LikeCount "
-        f"FROM FeedItem "
+    return sf.query(
+        "SELECT Id, Body, Type, Title, LinkUrl, CreatedDate, CreatedBy.Name, "
+        "CommentCount, LikeCount, "
+        "(SELECT CommentBody, CreatedDate, CreatedBy.Name FROM FeedComments "
+        "ORDER BY CreatedDate) "
+        "FROM FeedItem "
         f"WHERE ParentId = '{record_id}' "
-        f"ORDER BY CreatedDate DESC "
-        f"LIMIT 50"
+        "ORDER BY CreatedDate DESC "
+        f"LIMIT {limit}"
     )
-    return feed_items
+
+
+def _history_source(object_type: str) -> tuple[str, str]:
+    """Return (history object, parent id field) for an object's field history.
+
+    Standard objects use <Object>History/<Object>Id, except Opportunity which
+    uses OpportunityFieldHistory. Custom objects use <Name>__History/ParentId.
+    """
+    if object_type == "Opportunity":
+        return "OpportunityFieldHistory", "OpportunityId"
+    if object_type.endswith("__c"):
+        return f"{object_type[:-3]}__History", "ParentId"
+    return f"{object_type}History", f"{object_type}Id"
 
 
 @mcp.tool()
-def get_field_history(object_type: str, record_id: str) -> dict:
+def get_field_history(object_type: str, record_id: str, limit: int = 200) -> dict:
     """Get the change history for a record's fields.
 
     Shows who changed what and when — useful for understanding how a deal
     has progressed (e.g. stage changes, owner changes, value updates).
+    Only fields with history tracking enabled are recorded.
 
     Args:
-        object_type: The object type (Opportunity, Account, etc.)
+        object_type: The object type (Opportunity, Account, Contact, Lead, Exit__c, ...)
         record_id: The ID of the record
+        limit: Maximum changes to return, newest first (default 200)
     """
     sf = get_sf_client()
-    history_object = f"{object_type}FieldHistory"
-    id_field = f"{object_type}Id"
+    history_object, id_field = _history_source(object_type)
     try:
-        result = sf.query(
-            f"SELECT Id, Field, OldValue, NewValue, CreatedDate, CreatedBy.Name "
+        return sf.query(
+            "SELECT Id, Field, OldValue, NewValue, CreatedDate, CreatedBy.Name "
             f"FROM {history_object} "
             f"WHERE {id_field} = '{record_id}' "
-            f"ORDER BY CreatedDate DESC "
-            f"LIMIT 100"
+            "ORDER BY CreatedDate DESC "
+            f"LIMIT {limit}"
         )
-        return result
     except Exception as e:
         return {"error": f"Field history not available for {object_type}: {str(e)}"}

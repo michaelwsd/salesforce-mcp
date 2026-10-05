@@ -28,27 +28,30 @@ salesforce-mcp/
 ├── app/
 │   ├── __init__.py      # FastMCP instance + logging
 │   ├── client.py        # Salesforce OAuth2 connection
+│   ├── activities.py    # Archived-aware Task/Event/EmailMessage lookups
 │   ├── auth.py          # API key middleware (Bearer token)
 │   ├── field_map.py     # Legacy fid field name mappings
 │   ├── status.py        # Status page + uptime API
 │   └── tools/
 │       ├── __init__.py  # Imports all tool modules
-│       ├── crud.py      # query, search, get/create/update/delete_record
+│       ├── crud.py      # query, query_more, search, get/create/update/delete_record
 │       ├── metadata.py  # list_objects, describe_object, describe_field
-│       ├── files.py     # list_files, get_file, attach_file_link
+│       ├── files.py     # list_files, get_file, download_file, attach_file_link
 │       ├── reports.py   # list_reports, run_report, list_dashboards
-│       ├── notes.py     # get_notes, get_activities, get_feed, get_field_history
+│       ├── notes.py     # get_notes, get_activities, get_emails, get_feed, get_field_history
 │       ├── company.py   # get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
 │       ├── bulk.py      # bulk_upsert, bulk_query
-│       └── onedrive.py  # list_onedrive_files, download_onedrive_file, read_gowt_excel
+│       ├── onedrive.py  # list_onedrive_files, download_onedrive_file, read_gowt_excel
+│       └── outreach.py  # upload_email_attachment, bulk_email
 ```
 
-## Tools (28)
+## Tools (33)
 
 ### Core CRUD
 | Tool | Description |
 |------|-------------|
-| `query` | Run arbitrary SOQL queries |
+| `query` | Run arbitrary SOQL queries (pages of 2000; `include_archived=True` for archived Tasks/Events and deleted rows) |
+| `query_more` | Fetch the next batch of a large `query` result |
 | `search` | Run SOSL full-text search across objects |
 | `get_record` | Get a single record by type and ID |
 | `create_record` | Create a new record |
@@ -59,7 +62,7 @@ salesforce-mcp/
 | Tool | Description |
 |------|-------------|
 | `list_objects` | List all queryable SObjects in the org |
-| `describe_object` | Get field metadata for an object |
+| `describe_object` | Get field metadata, lookup targets, and child relationships for an object |
 | `describe_field` | Get picklist values, type, constraints for a field |
 
 ### Notes & Activities
@@ -67,7 +70,8 @@ salesforce-mcp/
 |------|-------------|
 | `get_notes` | Get all notes for a record — searches Event Descriptions (APC/NL/HM notes), Task Descriptions, classic Notes, and ContentNotes. Supports `since` date filter and `limit`. |
 | `get_activities` | Get all Tasks and Events for a record with full Description content |
-| `get_feed` | Get Chatter feed posts on a record |
+| `get_emails` | Get EmailMessages for a record (Related To for deals/accounts; sender or recipient for people) |
+| `get_feed` | Get Chatter feed posts (with comments) on a record |
 | `get_field_history` | Get change history (who changed what, when) |
 
 ### Company Deep-Dive
@@ -83,6 +87,7 @@ salesforce-mcp/
 |------|-------------|
 | `list_files` | List ContentDocuments linked to a record |
 | `get_file` | Get file metadata and download URL |
+| `download_file` | Download a file's content as base64 (up to 20MB) |
 | `attach_file_link` | Link an external URL to a record as a ContentVersion |
 
 ### Reports & Dashboards
@@ -96,7 +101,7 @@ salesforce-mcp/
 | Tool | Description |
 |------|-------------|
 | `bulk_upsert` | Upsert multiple records via Bulk API |
-| `bulk_query` | Async query for large datasets |
+| `bulk_query` | Async query for large datasets (supports `include_archived`) |
 
 ### OneDrive (GOWT Excel)
 | Tool | Description |
@@ -104,6 +109,16 @@ salesforce-mcp/
 | `list_onedrive_files` | List files in the GOWT Data Scrape folder |
 | `download_onedrive_file` | Download a file as base64 |
 | `read_gowt_excel` | Download and parse a GOWT Excel spreadsheet, returning structured data (sheet names, headers, rows) |
+
+### Outreach
+| Tool | Description |
+|------|-------------|
+| `upload_email_attachment` | Upload a file once as a ContentVersion for reuse as a bulk email attachment |
+| `bulk_email` | Send individual outreach emails to many Contacts/addresses via Salesforce |
+
+## Archived Activities
+
+Salesforce archives Tasks and Events older than about a year, and normal SOQL does not return them. In this org that is ~75% of Tasks and ~96% of Events, which is most historical meeting notes. `get_notes`, `get_activities` and `get_company_overview` always include archived activities (via `queryAll`) and also match activities rolled up to an Account or linked to a Contact as a non-primary invitee. For raw SOQL on Task/Event, pass `include_archived=True` and filter `IsDeleted = false`.
 
 ## Setup for Team Members
 

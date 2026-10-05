@@ -3,26 +3,35 @@ from app.client import get_sf_client
 
 
 @mcp.tool()
-def list_objects() -> list[dict]:
-    """List all SObjects (object types) available in the Salesforce org.
+def list_objects(custom_only: bool = False) -> dict:
+    """List all queryable SObjects (object types) in the Salesforce org.
 
     Returns the name and label of each object. Use this to discover what
-    objects exist before querying them.
+    objects exist before querying them. The org has ~700 queryable objects,
+    mostly system ones; the business data lives in Account, Contact, Lead,
+    Opportunity, OpportunityContactRole, Task, Event, EmailMessage, Note,
+    FeedItem, ContentDocument, Campaign, and the custom objects.
+
+    Args:
+        custom_only: Only return custom objects (names ending in __c)
     """
     sf = get_sf_client()
-    description = sf.describe()
-    return [
+    objects = [
         {"name": obj["name"], "label": obj["label"], "custom": obj["custom"]}
-        for obj in description["sobjects"]
-        if obj["queryable"]
+        for obj in sf.describe()["sobjects"]
+        if obj["queryable"] and (obj["custom"] or not custom_only)
     ]
+    return {"count": len(objects), "objects": objects}
 
 
 @mcp.tool()
-def describe_object(object_type: str) -> list[dict]:
-    """Get field metadata for a Salesforce object.
+def describe_object(object_type: str) -> dict:
+    """Get field and relationship metadata for a Salesforce object.
 
-    Returns the name, label, type, and whether each field is required.
+    Returns each field's name, label, type, whether it is required, and for
+    lookups the referenced objects and relationship name (for dot-notation
+    like Owner.Name). Also lists child relationships usable in subqueries
+    (e.g. SELECT Id, (SELECT Id FROM OpportunityContactRoles) FROM Opportunity).
     Use this to understand what fields are available before querying or
     creating records.
 
@@ -32,16 +41,29 @@ def describe_object(object_type: str) -> list[dict]:
     sf = get_sf_client()
     sobject = getattr(sf, object_type)
     description = sobject.describe()
-    return [
-        {
+    fields = []
+    for f in description["fields"]:
+        field = {
             "name": f["name"],
             "label": f["label"],
             "type": f["type"],
             "required": not f["nillable"] and not f["defaultedOnCreate"],
             "custom": f["custom"],
         }
-        for f in description["fields"]
-    ]
+        if f.get("referenceTo"):
+            field["references"] = f["referenceTo"]
+            field["relationship_name"] = f.get("relationshipName")
+        fields.append(field)
+    return {
+        "name": description["name"],
+        "label": description["label"],
+        "fields": fields,
+        "child_relationships": [
+            {"relationship_name": c["relationshipName"], "child_object": c["childSObject"], "field": c["field"]}
+            for c in description["childRelationships"]
+            if c.get("relationshipName")
+        ],
+    }
 
 
 @mcp.tool()

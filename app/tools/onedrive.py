@@ -30,7 +30,7 @@ def _get_onedrive_token() -> str:
 
 
 @mcp.tool()
-def list_onedrive_files() -> list[dict]:
+def list_onedrive_files() -> dict:
     """List all files in the GOWT Data Scrape folder on OneDrive.
 
     This folder contains the GOWT Excel spreadsheets:
@@ -46,15 +46,17 @@ def list_onedrive_files() -> list[dict]:
     if resp.status_code != 200:
         return {"error": f"Failed to list files ({resp.status_code}): {resp.text[:200]}"}
     items = resp.json().get("value", [])
-    return [
-        {
-            "name": item["name"],
-            "size": item.get("size"),
-            "last_modified": item.get("lastModifiedDateTime"),
-            "web_url": item.get("webUrl"),
-        }
-        for item in items
-    ]
+    return {
+        "files": [
+            {
+                "name": item["name"],
+                "size": item.get("size"),
+                "last_modified": item.get("lastModifiedDateTime"),
+                "web_url": item.get("webUrl"),
+            }
+            for item in items
+        ]
+    }
 
 
 @mcp.tool()

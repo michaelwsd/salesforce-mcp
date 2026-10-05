@@ -9,7 +9,7 @@ def list_reports() -> dict:
     Returns report names and IDs. Use the ID with run_report to execute one.
     """
     sf = get_sf_client()
-    return sf.query("SELECT Id, Name, FolderName FROM Report ORDER BY Name")
+    return sf.query_all("SELECT Id, Name, FolderName, Description FROM Report ORDER BY Name")
 
 
 @mcp.tool()
@@ -26,13 +26,12 @@ def run_report(report_id: str, filters: dict | None = None) -> dict:
 
 
 @mcp.tool()
-def list_dashboards() -> list[dict]:
+def list_dashboards() -> dict:
     """List all dashboards in the Salesforce org.
 
     Returns dashboard names and IDs.
     """
     sf = get_sf_client()
     result = sf.restful("analytics/dashboards")
-    if isinstance(result, list):
-        return result
-    return result.get("dashboards", [])
+    dashboards = result if isinstance(result, list) else result.get("dashboards", [])
+    return {"count": len(dashboards), "dashboards": dashboards}

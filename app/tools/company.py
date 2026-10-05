@@ -1,4 +1,5 @@
 from app import mcp
+from app.activities import fetch_activities, fetch_emails
 from app.client import get_sf_client
 from app.field_map import OPPORTUNITY_FIELD_MAP, OTHER_NOTABLE_FIELDS
 
@@ -8,7 +9,8 @@ def get_company_overview(opportunity_id: str) -> dict:
     """Get a comprehensive overview of a company/deal from Salesforce.
 
     Pulls together the Opportunity record (with human-readable field names),
-    related Account, Contacts, notes, activities, files, and growth summaries.
+    related Account, Contacts, notes, activities (including archived), recent
+    emails, files, and growth summaries. Use get_emails for email bodies.
     This is the go-to tool for screener prep, meeting prep, or any deep-dive.
 
     Args:
@@ -37,18 +39,21 @@ def get_company_overview(opportunity_id: str) -> dict:
         f"WHERE OpportunityId = '{opportunity_id}'"
     )
 
-    tasks = sf.query(
-        "SELECT Id, Subject, ActivityDate, Status, Description, Owner.Name, Who.Name "
-        "FROM Task "
-        f"WHERE WhatId = '{opportunity_id}' "
-        "ORDER BY ActivityDate DESC NULLS LAST LIMIT 50"
+    # Includes archived activities, which hold most historical meeting notes.
+    tasks = fetch_activities(
+        sf, "Task", opportunity_id,
+        "Subject, ActivityDate, Status, Description, Owner.Name, Who.Name",
+        "ActivityDate", limit=50,
     )
-
-    events = sf.query(
-        "SELECT Id, Subject, StartDateTime, EndDateTime, Description, Owner.Name, Who.Name "
-        "FROM Event "
-        f"WHERE WhatId = '{opportunity_id}' "
-        "ORDER BY StartDateTime DESC NULLS LAST LIMIT 50"
+    events = fetch_activities(
+        sf, "Event", opportunity_id,
+        "Subject, StartDateTime, EndDateTime, Description, Owner.Name, Who.Name",
+        "StartDateTime", limit=50,
+    )
+    emails = fetch_emails(
+        sf, opportunity_id,
+        "Subject, MessageDate, FromName, FromAddress, ToAddress, Incoming",
+        limit=50,
     )
 
     notes = sf.query(
@@ -77,8 +82,9 @@ def get_company_overview(opportunity_id: str) -> dict:
         "opportunity": readable_opp,
         "account": {k: v for k, v in (account or {}).items() if k != "attributes" and v is not None} if account else None,
         "contacts": contacts["records"],
-        "tasks": tasks["records"],
-        "events": events["records"],
+        "tasks": tasks,
+        "events": events,
+        "emails": emails,
         "notes": notes["records"],
         "files": files["records"],
         "growth_summaries": growth["records"],
@@ -172,7 +178,7 @@ def get_gowt_opportunities(
     return sf.query_all(
         "SELECT Id, Name, StageName, GOWT_Priority__c, Transaction_type__c, "
         "fid8__c, fid14__c, fid15__c, fid17__c, fid53__c, "
-        "Owner.Name, Resurrection_Date__c, Re_outreach_review_date__c, "
+        "Owner.Name, Resurrection_Date__c, Re_outreach_date__c, Outreach_priority__c, "
         "Company__c, Company_Website__c "
         "FROM Opportunity "
         f"WHERE {where} "

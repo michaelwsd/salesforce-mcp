@@ -25,6 +25,8 @@ Claude Desktop / Skill / Agent
 
 **Transport:** Streamable HTTP. Endpoint at `/mcp`. Status page at `/`.
 
+**API version:** pinned to Salesforce REST v62.0 in `app/client.py` (`API_VERSION`).
+
 **Framework:** FastMCP (Python SDK) — tools defined as decorated functions, schema auto-generated from type hints.
 
 **Hosting:** Render free tier (512MB RAM, sleeps after 15min inactivity). Single process running uvicorn.
@@ -41,19 +43,21 @@ salesforce-mcp/
 ├── app/
 │   ├── __init__.py      # FastMCP instance + logging + tool registration
 │   ├── client.py        # Salesforce OAuth2 connection (get_sf_client)
+│   ├── activities.py    # Archived-aware Task/Event/EmailMessage lookups shared by notes + company tools
 │   ├── auth.py          # API key middleware (skips / and /api/uptime)
 │   ├── field_map.py     # OPPORTUNITY_FIELD_MAP + OTHER_NOTABLE_FIELDS
 │   ├── status.py        # Status page HTML + live uptime API
 │   └── tools/
 │       ├── __init__.py  # Imports all tool modules to trigger @mcp.tool() registration
-│       ├── crud.py      # 6 tools: query, search, get/create/update/delete_record
+│       ├── crud.py      # 7 tools: query, query_more, search, get/create/update/delete_record
 │       ├── metadata.py  # 3 tools: list_objects, describe_object, describe_field
-│       ├── files.py     # 3 tools: list_files, get_file, attach_file_link
+│       ├── files.py     # 4 tools: list_files, get_file, download_file, attach_file_link
 │       ├── reports.py   # 3 tools: list_reports, run_report, list_dashboards
-│       ├── notes.py     # 4 tools: get_notes, get_activities, get_feed, get_field_history
+│       ├── notes.py     # 5 tools: get_notes, get_activities, get_emails, get_feed, get_field_history
 │       ├── company.py   # 4 tools: get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
 │       ├── bulk.py      # 2 tools: bulk_upsert, bulk_query
-│       └── onedrive.py  # 3 tools: list_onedrive_files, download_onedrive_file, read_gowt_excel
+│       ├── onedrive.py  # 3 tools: list_onedrive_files, download_onedrive_file, read_gowt_excel
+│       └── outreach.py  # 2 tools: upload_email_attachment, bulk_email
 ```
 
 ---
@@ -94,13 +98,14 @@ API key passed as Bearer token in HTTP header. Each team member gets a key. The 
 
 ---
 
-## Tools (28)
+## Tools (33)
 
 ### Core CRUD (crud.py)
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `query` | Run arbitrary SOQL | `soql: str` |
+| `query` | Run arbitrary SOQL, paged | `soql: str, include_archived: bool (default False), max_records: int (default 2000)` |
+| `query_more` | Next batch of a paged query | `next_records_url: str, include_archived: bool, max_records: int` |
 | `search` | Run SOSL search | `sosl: str` |
 | `get_record` | Get a single record | `object_type: str, record_id: str, fields: list[str] (optional)` |
 | `create_record` | Create a new record | `object_type: str, data: dict` |
@@ -111,7 +116,7 @@ API key passed as Bearer token in HTTP header. Each team member gets a key. The 
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `list_objects` | List all SObjects in the org | None |
+| `list_objects` | List all queryable SObjects in the org | `custom_only: bool (default False)` |
 | `describe_object` | Get field metadata for an object | `object_type: str` |
 | `describe_field` | Get picklist values, field type, etc. | `object_type: str, field_name: str` |
 
@@ -120,9 +125,10 @@ API key passed as Bearer token in HTTP header. Each team member gets a key. The 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `get_notes` | Get notes from all sources (Event Descriptions, Task Descriptions, classic Notes, ContentNotes). Primary source of meeting notes (APC notes, NL notes, etc.) | `record_id: str, since: str (optional YYYY-MM-DD), limit: int (default 20)` |
-| `get_activities` | Get all Tasks and Events with Descriptions | `record_id: str, include_description: bool (default True)` |
-| `get_feed` | Get Chatter feed posts | `record_id: str` |
-| `get_field_history` | Get field change history | `object_type: str, record_id: str` |
+| `get_activities` | Get all Tasks and Events with Descriptions | `record_id: str, include_description: bool (default True), since: str (optional), limit: int (default 200)` |
+| `get_emails` | Get EmailMessages for a record | `record_id: str, since: str (optional), limit: int (default 50), include_body: bool (default True), max_body_chars: int (default 5000)` |
+| `get_feed` | Get Chatter feed posts with comments | `record_id: str, limit: int (default 50)` |
+| `get_field_history` | Get field change history | `object_type: str, record_id: str, limit: int (default 200)` |
 
 ### Company Deep-Dive (company.py)
 
@@ -139,6 +145,7 @@ API key passed as Bearer token in HTTP header. Each team member gets a key. The 
 |------|-------------|------------|
 | `list_files` | List ContentDocuments linked to a record | `record_id: str` |
 | `get_file` | Get file metadata and download URL | `document_id: str` |
+| `download_file` | Download file content as base64 (max 20MB) | `document_id: str` |
 | `attach_file_link` | Link an external URL to a record | `record_id: str, url: str, title: str` |
 
 ### Reports & Dashboards (reports.py)
@@ -154,7 +161,7 @@ API key passed as Bearer token in HTTP header. Each team member gets a key. The 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `bulk_upsert` | Upsert multiple records | `object_type: str, external_id_field: str, records: list[dict]` |
-| `bulk_query` | Async query for large datasets | `soql: str` |
+| `bulk_query` | Async query for large datasets | `soql: str, include_archived: bool (default False), max_records: int (default 50000)` |
 
 ### OneDrive / GOWT Excel (onedrive.py)
 
@@ -210,7 +217,9 @@ Notes in this org are scattered across four places:
 3. **Note** — classic notes linked via ParentId
 4. **ContentNote** — enhanced notes linked via ContentDocumentLink
 
-The `get_notes` tool searches all four. Events/Tasks are linked via WhatId (Opportunity/Account) or WhoId (Contact/Lead — prefixes 003/00Q).
+The `get_notes` tool searches all four. Events/Tasks are linked via WhatId (Opportunity/Account), AccountId (rolled up from an Account's Opportunities/Contacts), WhoId (primary Contact/Lead, prefixes 003/00Q), or Task/EventRelation (other invitees). `app/activities.py` unions all of these.
+
+**Archived activities:** Salesforce archives Tasks/Events older than ~1 year and hides them from normal SOQL. As of Oct 2026 that is ~73k of ~98k Tasks and ~24k of ~25k Events. All activity lookups must use `queryAll` (`include_deleted=True` in simple-salesforce) with `IsDeleted = false`.
 
 ---
 
