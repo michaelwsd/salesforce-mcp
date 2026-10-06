@@ -7,13 +7,9 @@ validation error ("Word found unreadable content"). This module puts every
 property element back into schema order and fixes the default template's
 <w:zoom> element, which lacks the required w:percent attribute.
 
-Usage:
-    python fix_xml.py input.docx output.docx
-
-build_screener.py applies the same repair automatically before saving.
+app/screener/build.py applies this repair to every screener before saving.
 """
 
-import sys
 import zipfile
 
 from lxml import etree
@@ -105,9 +101,3 @@ def repair_docx(src: str, dst: str) -> None:
                 data = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
             zout.writestr(item, data)
 
-
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        sys.exit("Usage: python fix_xml.py input.docx output.docx")
-    repair_docx(sys.argv[1], sys.argv[2])
-    print(f"Repaired -> {sys.argv[2]}")

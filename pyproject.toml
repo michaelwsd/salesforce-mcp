@@ -10,4 +10,7 @@ dependencies = [
     "uvicorn",
     "python-dotenv",
     "openpyxl",
+    "python-docx",
+    "matplotlib",
+    "numpy",
 ]

@@ -32,20 +32,22 @@ salesforce-mcp/
 │   ├── auth.py          # API key middleware (Bearer token)
 │   ├── field_map.py     # Legacy fid field name mappings
 │   ├── status.py        # Status page + uptime API
-│   └── tools/
-│       ├── __init__.py  # Imports all tool modules
-│       ├── crud.py      # query, query_more, search, get/create/update/delete_record
-│       ├── metadata.py  # list_objects, describe_object, describe_field
-│       ├── files.py     # list_files, get_file, download_file, attach_file_link
-│       ├── reports.py   # list_reports, run_report, list_dashboards
-│       ├── notes.py     # get_notes, get_activities, get_emails, get_feed, get_field_history
-│       ├── company.py   # get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
-│       ├── bulk.py      # bulk_upsert, bulk_query
-│       ├── onedrive.py  # list_onedrive_files, download_onedrive_file, read_gowt_excel
-│       └── outreach.py  # upload_email_attachment, bulk_email
+│   ├── tools/
+│   │   ├── __init__.py  # Imports all tool modules
+│   │   ├── crud.py      # query, query_more, search, get/create/update/delete_record
+│   │   ├── metadata.py  # list_objects, describe_object, describe_field
+│   │   ├── files.py     # list_files, get_file, download_file, attach_file_link
+│   │   ├── reports.py   # list_reports, run_report, list_dashboards
+│   │   ├── notes.py     # get_notes, get_activities, get_emails, get_feed, get_field_history
+│   │   ├── company.py   # get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
+│   │   ├── bulk.py      # bulk_upsert, bulk_query
+│   │   ├── onedrive.py  # list_onedrive_files, download_onedrive_file, read_gowt_excel
+│   │   ├── outreach.py  # upload_email_attachment, bulk_email
+│   │   └── screener.py  # get_screener_guide, create_deal, build_screener
+│   └── screener/        # Screener builder: build.py, fix_xml.py, guide.md, example_spec.json
 ```
 
-## Tools (33)
+## Tools (36)
 
 ### Core CRUD
 | Tool | Description |
@@ -110,6 +112,13 @@ salesforce-mcp/
 | `download_onedrive_file` | Download a file as base64 |
 | `read_gowt_excel` | Download and parse a GOWT Excel spreadsheet, returning structured data (sheet names, headers, rows) |
 
+### Investment Screener
+| Tool | Description |
+|------|-------------|
+| `get_screener_guide` | Workflow, AA house style and spec format for screeners. Claude calls this first when asked to screen a company |
+| `create_deal` | Create the Account + Opportunity (team conventions) for a company not yet in Salesforce; never duplicates |
+| `build_screener` | Validate a screener spec against the house rules, build the two-page .docx, and attach it to the Opportunity (rebuilds add a new version) |
+
 ### Outreach
 | Tool | Description |
 |------|-------------|
@@ -120,13 +129,14 @@ salesforce-mcp/
 
 Salesforce archives Tasks and Events older than about a year, and normal SOQL does not return them. In this org that is ~75% of Tasks and ~96% of Events, which is most historical meeting notes. `get_notes`, `get_activities` and `get_company_overview` always include archived activities (via `queryAll`) and also match activities rolled up to an Account or linked to a Contact as a non-primary invitee. For raw SOQL on Task/Event, pass `include_archived=True` and filter `IsDeleted = false`.
 
-## Investment Screener Skill
+## Investment Screeners
 
-`skills/investment-screener/` is a Claude skill that produces AA-format two-page screening memos (.docx). It uses this MCP's tools to check Salesforce for prior contact. See its `INSTALL.md` to install it and `SKILL.md` for the format. The build script can also be run directly:
+Ask Claude in plain language, e.g. "screen Acme" or "build a screener from this IM" (attach the IM). Claude calls `get_screener_guide`, researches the company (attached documents, Salesforce history, public sources), creates the deal with `create_deal` if it isn't in Salesforce, and calls `build_screener`. The finished `Screener_Project X.docx` is attached to the Opportunity, and Claude replies with the Salesforce link and a short recommendation. Claude Desktop also lists a `screen` prompt.
+
+The builder lives in `app/screener/` (`guide.md` is the house-style guide Claude follows). To build from a spec locally:
 
 ```bash
-pip install python-docx matplotlib numpy
-python skills/investment-screener/scripts/build_screener.py skills/investment-screener/examples/example_spec.json -o ~/Desktop/
+uv run python -m app.screener app/screener/example_spec.json -o ~/Desktop/
 ```
 
 ## Setup for Team Members

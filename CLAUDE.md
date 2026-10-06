@@ -47,17 +47,23 @@ salesforce-mcp/
 │   ├── auth.py          # API key middleware (skips / and /api/uptime)
 │   ├── field_map.py     # OPPORTUNITY_FIELD_MAP + OTHER_NOTABLE_FIELDS
 │   ├── status.py        # Status page HTML + live uptime API
-│   └── tools/
-│       ├── __init__.py  # Imports all tool modules to trigger @mcp.tool() registration
-│       ├── crud.py      # 7 tools: query, query_more, search, get/create/update/delete_record
-│       ├── metadata.py  # 3 tools: list_objects, describe_object, describe_field
-│       ├── files.py     # 4 tools: list_files, get_file, download_file, attach_file_link
-│       ├── reports.py   # 3 tools: list_reports, run_report, list_dashboards
-│       ├── notes.py     # 5 tools: get_notes, get_activities, get_emails, get_feed, get_field_history
-│       ├── company.py   # 4 tools: get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
-│       ├── bulk.py      # 2 tools: bulk_upsert, bulk_query
-│       ├── onedrive.py  # 3 tools: list_onedrive_files, download_onedrive_file, read_gowt_excel
-│       └── outreach.py  # 2 tools: upload_email_attachment, bulk_email
+│   ├── tools/
+│   │   ├── __init__.py  # Imports all tool modules to trigger @mcp.tool() registration
+│   │   ├── crud.py      # 7 tools: query, query_more, search, get/create/update/delete_record
+│   │   ├── metadata.py  # 3 tools: list_objects, describe_object, describe_field
+│   │   ├── files.py     # 4 tools: list_files, get_file, download_file, attach_file_link
+│   │   ├── reports.py   # 3 tools: list_reports, run_report, list_dashboards
+│   │   ├── notes.py     # 5 tools: get_notes, get_activities, get_emails, get_feed, get_field_history
+│   │   ├── company.py   # 4 tools: get_company_overview, get_opportunity_field_map, get_related_contacts, get_gowt_opportunities
+│   │   ├── bulk.py      # 2 tools: bulk_upsert, bulk_query
+│   │   ├── onedrive.py  # 3 tools: list_onedrive_files, download_onedrive_file, read_gowt_excel
+│   │   ├── outreach.py  # 2 tools: upload_email_attachment, bulk_email
+│   │   └── screener.py  # 3 tools + `screen` prompt: get_screener_guide, create_deal, build_screener
+│   └── screener/
+│       ├── build.py     # Spec validation + .docx/chart rendering (python -m app.screener)
+│       ├── fix_xml.py   # OOXML schema-order repair applied to every build
+│       ├── guide.md     # House-style guide returned by get_screener_guide
+│       └── example_spec.json
 ```
 
 ---
@@ -98,7 +104,7 @@ API key passed as Bearer token in HTTP header. Each team member gets a key. The 
 
 ---
 
-## Tools (33)
+## Tools (36)
 
 ### Core CRUD (crud.py)
 
@@ -279,25 +285,14 @@ Hosted on Render free tier. Auto-deploys from GitHub `main` branch.
 
 ---
 
-## Screener Skill Integration
+## Investment Screeners
 
-The screener skill is the first consumer of this MCP. The flow:
+Users ask in plain language ("screen Acme"); there is no separate skill to install. The flow:
 
-1. Query Salesforce for company data (Account, Opportunity, Contacts, notes, activity history)
-2. List files linked to the record
-3. Accept user-uploaded docs (CIM, IM, financials)
-4. Extract text + page images from docs
-5. Claude identifies relevant charts/tables
-6. Populate screener template sections
-7. Generate completed .docx
-8. Upload to storage, link to Salesforce via `attach_file_link`
+1. Claude calls `get_screener_guide` (returns `app/screener/guide.md` + `example_spec.json`)
+2. Gathers attached IM/CIM, Salesforce history (`search`, `get_company_overview`, `get_notes`, `get_emails`) and public research
+3. If the company is not in Salesforce, `create_deal` creates the Account + Opportunity with team conventions (stage `4. Medium`, CloseDate 2049-01-01, industry `fid8__c`, location `fid5__c`, source type `fid10__c`, discussion status `fid31__c`, `fidprocesscreateddate__c` now)
+4. Claude writes the spec JSON and calls `build_screener(spec, opportunity_id)`. Validation errors come back without building; Claude fixes and retries
+5. The .docx is uploaded as ContentVersion `Screener_Project X` linked to the Opportunity; a rebuild with the same title adds a new version of the same ContentDocument
 
-### Screener Sections
-
-| Section | Sources | AI Confidence |
-|---------|---------|---------------|
-| Business & Industry Overview | CIM text, SF Account, web research | High |
-| Financial Overview | CIM financials, cropped charts | Medium-High |
-| Transaction Dynamics & Recommendation | SF notes, CIM deal section | Medium |
-| Investment Thesis Criteria | All sources — Y/N/? per criterion | Medium |
-| Porter's Five Forces | CIM + web research — L/M/H | Medium |
+**House format:** two pages, A4, AA colours, combo chart + revenue-mix donut + chart notes, fixed thesis (2 category headers, 5 criteria, confirmed against Dark Horse, Silver Wolf and CoolDrive screeners) and Porter tables. Reference standard is `Screener_Project Bundaberg.docx` (Sep-2026). Charts use Calibri when present, else Carlito (installed in the Docker image).

@@ -1,12 +1,11 @@
 """Build an AA Investment Screener (.docx) from a JSON spec.
 
-Usage:
-    python build_screener.py spec.json                  # -> ./Screener_Project X.docx
-    python build_screener.py spec.json -o out_dir/      # -> out_dir/Screener_Project X.docx
-    python build_screener.py spec.json -o file.docx
-    python build_screener.py spec.json --check          # validate only, no build
+Used by the build_screener MCP tool (app/tools/screener.py). Also runnable:
+    python -m app.screener spec.json                  # -> ./Screener_Project X.docx
+    python -m app.screener spec.json -o out_dir/      # -> out_dir/Screener_Project X.docx
+    python -m app.screener spec.json --check          # validate only, no build
 
-The spec format is documented in SKILL.md and examples/example_spec.json.
+The spec format is documented in guide.md and example_spec.json.
 House rules (number formats, fixed thesis/Porter rows, revenue-stream style,
 percentages summing to 100%) are enforced here; errors stop the build and
 warnings are printed. The file is built and repaired in a temporary directory
@@ -15,12 +14,15 @@ folder (OneDrive) cannot leave a half-written, corrupt file.
 """
 
 import argparse
+import itertools
 import json
+import logging
 import os
 import re
 import shutil
 import sys
 import tempfile
+import threading
 
 import matplotlib
 
@@ -34,12 +36,14 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor, Twips
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import itertools
+from app.screener.fix_xml import repair_docx, repair_tree
 
-from fix_xml import repair_docx, repair_tree
+logger = logging.getLogger(__name__)
 
-# ── AA house format (do not change; see SKILL.md "AA format reference") ──────
+# pyplot keeps global state; the server may build two screeners at once.
+_chart_lock = threading.Lock()
+
+# ── AA house format (do not change; see guide.md "AA format reference") ──────
 PAGE_W, PAGE_H = 11906, 16838                  # A4, twips
 MARGIN_TOP, MARGIN_BOTTOM, MARGIN_LR = 567, 568, 1134
 CONTENT_W = 9628                               # DXA
@@ -358,8 +362,8 @@ def chart_font() -> str:
             break
     else:
         _chart_font = "DejaVu Sans"
-        print("WARNING: Calibri not found; charts use DejaVu Sans. Install Calibri or Carlito "
-              "for house-style charts.")
+        logger.warning("Calibri not found; charts use DejaVu Sans. Install Calibri or Carlito "
+                       "for house-style charts.")
     return _chart_font
 
 def growth_points(periods):
@@ -825,12 +829,13 @@ def build(spec: dict, out_path: str, workdir: str) -> None:
 
     combo_png = os.path.join(workdir, "combo.png")
     donut_png = os.path.join(workdir, "donut.png")
-    render_combo(fin, combo_png)
     mix_period = spec.get("revenue_mix_period") or next(
         (x for x in reversed(fin["periods"]) if x.endswith("A")), fin["periods"][-1])
     i = fin["periods"].index(mix_period) if mix_period in fin["periods"] else None
     centre = f"${fin['revenue'][i]:.1f}m\n{mix_period}" if i is not None else mix_period
-    render_donut(spec["revenue_mix"], centre, donut_png)
+    with _chart_lock:
+        render_combo(fin, combo_png)
+        render_donut(spec["revenue_mix"], centre, donut_png)
 
     box = doc.add_table(rows=1, cols=1)
     configure_table(box, [CONTENT_W], border_color=BOX_BORDER)
@@ -918,8 +923,22 @@ def build(spec: dict, out_path: str, workdir: str) -> None:
     repair_docx(raw, out_path)
 
 
+def file_title(spec: dict) -> str:
+    """'PROJECT BUNDABERG' -> 'Screener_Project Bundaberg' (house file naming)."""
+    return f"Screener_{project_title(spec)}"
+
+
+def build_docx_bytes(spec: dict) -> bytes:
+    """Build a validated spec and return the .docx file contents."""
+    with tempfile.TemporaryDirectory() as work:
+        out = os.path.join(work, "screener.docx")
+        build(spec, out, work)
+        with open(out, "rb") as f:
+            return f.read()
+
+
 def resolve_output(spec: dict, out: str | None) -> str:
-    name = f"Screener_{project_title(spec)}.docx"
+    name = f"{file_title(spec)}.docx"
     if not out:
         return os.path.abspath(name)
     if out.endswith(os.sep) or os.path.isdir(out):
@@ -949,6 +968,8 @@ def main():
         print(f"Spec OK ({len(problems.warnings)} warning(s)).")
         return
 
+    # Build in a temp dir and copy in complete, so writing into a synced folder
+    # (OneDrive) cannot leave a half-written file.
     dest = resolve_output(spec, args.out)
     with tempfile.TemporaryDirectory() as work:
         built = os.path.join(work, os.path.basename(dest))
@@ -956,7 +977,3 @@ def main():
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(built, dest)
     print(f"Built {dest}")
-
-
-if __name__ == "__main__":
-    main()

@@ -1,25 +1,14 @@
----
-name: investment-screener
-description: >
-  Produces AA-format Investment Screeners (screening memos) as Word documents (.docx)
-  for Armitage Associates. Use this skill whenever the user asks to build, create, run,
-  or update an investment screener, or says things like "screen [company]", "do a
-  screener for X", "can you screen this company", "build a screener from this IM",
-  "new deal came in, screen it", or uploads a marketing flyer, teaser, CIM or
-  information memorandum and asks for an assessment. Also triggers on "our advisor sent
-  us X" or "should we look at this deal?" in an investment context. Always use this
-  skill for screening; do not build the document from scratch, as the AA format is
-  produced and checked by scripts/build_screener.py.
----
+# Investment Screener Guide
 
-# Investment Screener Skill
-
-Produces a two-page AA screening memo in Word (.docx) in the current house format.
+How to build a two-page AA screening memo (.docx) in the current house format with the
+Armitage Salesforce MCP. The user asks in plain language ("screen Acme", "build a
+screener from this IM"); follow this guide end to end without asking them to run
+anything. `build_screener` produces the document and attaches it to the deal in
+Salesforce.
 
 **Reference standard: `Screener_Project Bundaberg.docx` (Sep-2026).** Screeners older than
 about July 2026 predate the current revenue-stream bullets and number conventions; do not
-copy them. When this file and the most recent screener in the folder disagree, follow the
-most recent screener.
+copy them.
 
 ## The AA mandate (the test every screener is written against)
 
@@ -30,12 +19,12 @@ a misfit. Say so; do not soften it.
 
 ## Workflow
 
-1. Gather everything (in parallel)
+1. Gather everything (in parallel), including finding the deal in Salesforce
 2. Score the thesis and Porter's forces before writing
-3. Write the screener spec (JSON)
-4. Build with `scripts/build_screener.py`
+3. Write the screener spec (a JSON object)
+4. Call `build_screener`; fix any errors it returns and call it again
 5. Quality check
-6. Deliver the file with a two-to-three sentence summary of the recommendation
+6. Reply with the Salesforce link and a two-to-three sentence summary of the recommendation
 
 ---
 
@@ -46,13 +35,18 @@ Run these at the same time, not one after another.
 1. **Attached documents** (IM, teaser, CIM, flyer, meeting notes). The primary source of
    truth. Read every page; PDFs often render as images. Extract the business description,
    financials, revenue mix, ownership, transaction details, advisor and process dates.
-2. **Salesforce.** If the Armitage Salesforce MCP is connected, use it:
-   - `search` for the company and obvious bolt-ons, then `get_company_overview` on any
-     Opportunity found (stage, owner, notes, activities, emails, files)
+2. **Salesforce.**
+   - `search` for the company (and obvious bolt-ons), e.g.
+     `FIND {Acme} IN NAME FIELDS RETURNING Opportunity(Id, Name, StageName), Account(Id, Name)`.
+     Note the Opportunity ID: the screener is attached to it.
+   - `get_company_overview` on the Opportunity (stage, owner, notes, activities, emails, files)
    - `get_notes` and `get_emails` for prior conversations. A prior approach that was
      killed, and why, is material to the recommendation.
-   - `list_files` / `download_file` for IMs or earlier screeners attached to the record
-3. **Existing screener.** Check the AA Investment Screener folder for one on this company.
+   - `list_files` / `download_file` for IMs, and for any earlier screener on the deal
+     (titles start `Screener_`)
+   - **Not in Salesforce yet?** Call `create_deal` with the company name, industry, city
+     and source type; it creates the Account and Opportunity the way the team does and
+     returns the Opportunity ID. Do not create a duplicate if `search` finds the company.
 4. **Public research.** Company website, LinkedIn, news, ASIC / NZ Companies Office
    filings, market size and growth, named competitors, comparable transactions. Search
    the company name with "Australia", "revenue", "EBITDA", "acquisition", "private equity".
@@ -72,8 +66,9 @@ information is not available, not "I would rather not say".
 
 ## Step 3 - Write the spec
 
-Copy `examples/example_spec.json` to a scratch directory and replace every value. All
-dollar values are A$m numbers; all percentages are numbers (`47.1`, not `"47%"`).
+The spec is the `spec` argument to `build_screener`. The complete example at the end of
+this guide shows every field; replace every value. All dollar values are A$m numbers; all
+percentages are numbers (`47.1`, not `"47%"`).
 
 ### Metadata
 
@@ -100,7 +95,7 @@ fact about the mix: `"FY26A $9.5m; 90.6% is the one-off sale of the unit."`
 >
 > Renders as: **Division Name (47.1%, $9.9m)** – description
 >
-> 1. The script renders the bold name and **(percentage, dollars)**, both to one decimal
+> 1. `build_screener` renders the bold name and **(percentage, dollars)**, both to one decimal
 >    place. Give `pct` and `value_m` as numbers.
 > 2. Lead the description with an **active verb**: "Tests and models", "Calibrates and
 >    certifies", "Builds and sells". Not a noun-string of capability names.
@@ -111,8 +106,8 @@ fact about the mix: `"FY26A $9.5m; 90.6% is the one-off sale of the unit."`
 >    "per-test fee", "annual per-unit subscription, c.$270", "VIC only", "its only
 >    customer in this division".
 > 5. **No staff counts.** "(17 staff)" was once mistranscribed as 17% against an actual
->    24%. FTE goes in `lead_para`. The script rejects staff counts here.
-> 6. Percentages must sum to 100.0%. The script rejects anything else.
+>    24%. FTE goes in `lead_para`. Staff counts here are rejected.
+> 6. Percentages must sum to 100.0%; anything else is rejected.
 >
 > Worked example (the reference standard):
 >
@@ -135,7 +130,7 @@ fact about the mix: `"FY26A $9.5m; 90.6% is the one-off sale of the unit."`
 
 ### Financial overview
 
-The script draws three things side by side: a combo chart, a revenue-mix donut, and the
+`build_screener` draws three things side by side: a combo chart, a revenue-mix donut, and the
 chart notes.
 
 **`financials`**
@@ -189,8 +184,8 @@ AA thematic or portfolio company overlap.
 
 ### Investment thesis criteria
 
-The two category headers and five criteria are **fixed**; the script supplies them and
-rejects unknown keys. Provide `{rating, evidence}` for each key:
+The two category headers and five criteria are **fixed**; `build_screener` supplies them
+and rejects unknown keys. Provide `{rating, evidence}` for each key:
 
 | Key | Criterion | Evidence guidance |
 |---|---|---|
@@ -229,7 +224,7 @@ from the IM or public sources.
 - **Negatives in brackets** in charts: `(2.7)`, `(17.0%)`.
 - Compact forms: `$13.1m`, `~30%`, `FY25A`, `H1 FY26A`, `incl.`, `approx.`, `GP`, `ARR`, `GTM`.
 
-The script formats every chart label and the revenue-stream brackets itself, rejects
+`build_screener` formats every chart label and the revenue-stream brackets itself, rejects
 two-decimal percentages and thousands-formatted dollars anywhere in the text, and warns
 on whole-number percentages.
 
@@ -251,28 +246,20 @@ The reader is a busy Investment Director. Dense with signal, free of noise.
 
 ## Step 4 - Build
 
-```bash
-pip install python-docx matplotlib numpy -q       # first run only
+Call `build_screener(spec, opportunity_id)`.
 
-python <skill_dir>/scripts/build_screener.py spec.json --check   # validate only
-python <skill_dir>/scripts/build_screener.py spec.json -o "<screener folder>/"
-```
-
-- Output is named `Screener_Project X.docx`. Ask the user for the AA Investment Screener
-  folder path (it differs per machine); never hard-code it. Without a path, the file is
-  written to the current directory.
-- The script builds and repairs the file in a temporary directory and copies it to the
-  destination only when complete, so writing to a OneDrive-synced folder is safe.
 - **Errors** (sums not 100.0%, wrong ratings, unknown criteria, staff counts, thousands,
-  two-decimal percentages) stop the build. **Warnings** print but do not stop it; fix them
-  or have a reason not to. `--strict` turns warnings into errors.
-- `scripts/fix_xml.py` (OOXML repair) runs automatically. It can also be run on its own:
-  `python fix_xml.py in.docx out.docx`.
+  two-decimal percentages) mean nothing was built. Fix every error in the spec and call
+  again. Do not ask the user to fix them.
+- **Warnings** are returned alongside a successful build. Fix them and rebuild unless
+  there is a reason not to (e.g. a whole-number percentage quoted from the IM).
+- The file is saved to Salesforce Files as `Screener_Project X` and attached to the
+  Opportunity. Building again for the same deal and project name uploads a new version of
+  the same file rather than a duplicate, so iterate freely.
 
 ## Step 5 - Quality check
 
-- [ ] Build ran with no errors and every warning is resolved or deliberate
-- [ ] Opens in Word with no repair prompt
+- [ ] `build_screener` returned no errors and every warning is resolved or deliberate
 - [ ] **Two pages.** If it runs to three, cut content; do not reformat
 - [ ] Title reads `SCREENING MEMO – PROJECT X (Company)`, initials right-aligned
 - [ ] Revenue-stream bullets follow the house style (active verb, why no choice, charging basis)
@@ -284,13 +271,13 @@ python <skill_dir>/scripts/build_screener.py spec.json -o "<screener folder>/"
 
 ## Step 6 - Deliver
 
-Give the user the file, then a two-to-three sentence summary of the recommendation only.
-Do not repeat the memo. If the user wants it on the deal record and the Salesforce MCP is
-connected, link it to the Opportunity.
+Reply with the `file_url` from `build_screener` (the file in Salesforce; the team opens it
+with their Salesforce login), then a two-to-three sentence summary of the recommendation
+only. Do not repeat the memo. Mention if you created a new Account/Opportunity.
 
 ---
 
-## AA format reference (implemented in the script; do not change)
+## AA format reference (implemented by build_screener; do not change)
 
 | Parameter | Value |
 |---|---|
@@ -314,8 +301,6 @@ connected, link it to the Opportunity.
 
 | Problem | Fix |
 |---|---|
-| `ModuleNotFoundError` | `pip install python-docx matplotlib numpy` |
-| `WARNING: Calibri not found` | Charts fall back to another font. Install Calibri (ships with Microsoft Office) or Carlito |
 | "must be numbers, not strings" | Give `pct`, `value_m` and financials as numbers: `47.1`, not `"47.1%"` |
 | "sum to 99.9%, must be 100.0%" | Rounding drift; adjust the largest segment so the total is exactly 100.0 |
 | No growth arrows or CAGR | Needs at least two full-year actual periods (`FYxxA`) |

@@ -18,6 +18,10 @@ people to deals. Notes live in Event/Task Description fields, classic Notes,
 and ContentNotes; emails in EmailMessage. Prefer get_company_overview,
 get_notes, get_activities, and get_emails for a single deal or company.
 
+Investment screeners: when asked to screen a company or build a screener
+(screening memo), call get_screener_guide first and follow it. build_screener
+produces the AA-format .docx and attaches it to the deal's Opportunity.
+
 Gotchas:
 - Tasks/Events older than ~1 year are archived and hidden from normal SOQL
   (most historical meeting notes). The notes/activity tools include them; for
