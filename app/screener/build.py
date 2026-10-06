@@ -137,6 +137,13 @@ class Problems:
 STAFF_COUNT = re.compile(r"\b\d[\d,.]*\s*(staff|FTEs?|employees|people|heads?)\b", re.IGNORECASE)
 TWO_DP_PCT = re.compile(r"\d+\.\d{2,}\s?%")
 WHOLE_PCT = re.compile(r"(?<![\d.~])\d+%")
+# Self-referential caveats about the memo itself ("DRAFT, TEASER-ONLY... not in the
+# house template... placeholders"). Gaps belong in the relevant field as [TBC].
+DISCLAIMER = re.compile(
+    r"^\W*draft\b|\bteaser[- ]only\b|not in the (house )?(screener )?template|\bplaceholders?\b"
+    r"|\bomitted until\b|\bthis (memo|screener|document) (is|was)\b",
+    re.IGNORECASE,
+)
 THOUSANDS = re.compile(r"\$\s?\d{1,3}(,\d{3})+(?![\d.]*\s?[mbk])", re.IGNORECASE)
 
 
@@ -151,6 +158,10 @@ def _sentences(text: str) -> int:
 
 
 def _check_text(path: str, text: str, p: Problems):
+    if DISCLAIMER.search(text):
+        p.error(f"{path}: no draft labels or caveats about the memo itself "
+                f"('{DISCLAIMER.search(text).group().strip()}') - the screener is final; "
+                "put each gap in its field as [TBC]")
     if TWO_DP_PCT.search(text):
         p.error(f"{path}: percentages must be one decimal place: {TWO_DP_PCT.search(text).group()}")
     m = WHOLE_PCT.search(text)
@@ -193,16 +204,21 @@ def validate(spec: dict) -> Problems:
     if name and not name.upper().startswith("PROJECT "):
         p.warn("project_name should be the AA codename, e.g. 'PROJECT BUNDABERG'")
 
-    # Revenue streams
-    streams = _require(spec, "revenue_streams", p, list) or []
+    # Revenue streams. pct / value_m may be null when the source does not give the
+    # split (rendered as TBC); when every pct is given they must sum to 100.0%.
+    streams = spec.get("revenue_streams") or []
+    if not isinstance(streams, list):
+        p.error("'revenue_streams' must be a list")
+        streams = []
     if streams:
         total = 0.0
+        all_pct = all(isinstance(s.get("pct"), (int, float)) for s in streams)
         for i, s in enumerate(streams):
-            for f in ("name", "pct", "value_m", "description"):
+            for f in ("name", "description"):
                 if s.get(f) in (None, ""):
                     p.error(f"revenue_streams[{i}] missing '{f}'")
             if isinstance(s.get("pct"), str) or isinstance(s.get("value_m"), str):
-                p.error(f"revenue_streams[{i}]: pct and value_m must be numbers, not strings")
+                p.error(f"revenue_streams[{i}]: pct and value_m must be numbers or null, not strings")
                 continue
             total += s.get("pct") or 0
             for f in ("pct", "value_m"):
@@ -212,7 +228,7 @@ def validate(spec: dict) -> Problems:
             if STAFF_COUNT.search(desc):
                 p.error(f"revenue_streams[{i}]: no staff counts in revenue-stream bullets "
                         f"('{STAFF_COUNT.search(desc).group()}') - put FTE in lead_para")
-        if abs(total - 100) > 0.15:
+        if all_pct and abs(total - 100) > 0.15:
             p.error(f"revenue_streams percentages sum to {total:.1f}%, must be 100.0%")
 
     # Business items
@@ -224,8 +240,11 @@ def validate(spec: dict) -> Problems:
         if needed not in labels:
             p.warn(f"business_items has no '{needed.capitalize()}' item")
 
-    # Financials
-    fin = _require(spec, "financials", p, dict) or {}
+    # Financials: a P&L series (charted) is optional, e.g. for teaser-only screens.
+    fin = spec.get("financials") or {}
+    if fin and not isinstance(fin, dict):
+        p.error("'financials' must be an object or null")
+        fin = {}
     if fin:
         periods = fin.get("periods") or []
         n = len(periods)
@@ -254,8 +273,18 @@ def validate(spec: dict) -> Problems:
         if any(isinstance(v, (int, float)) and v > 500 for v in fin.get("revenue") or []):
             p.error("financials.revenue looks like thousands - values must be A$m")
 
-    # Revenue mix (donut)
-    mix = _require(spec, "revenue_mix", p, list) or []
+    # Key metrics: headline figures shown instead of the chart when there is no P&L
+    # series (e.g. "ARR (Jun-26)": "$4.9m").
+    metrics = spec.get("key_metrics") or []
+    for i, m in enumerate(metrics):
+        if not m.get("label") or not m.get("value"):
+            p.error(f"key_metrics[{i}] needs 'label' and 'value'")
+    if not fin and not metrics:
+        p.error("provide financials (P&L series) or key_metrics (headline figures, use 'TBC' "
+                "for unknowns) - the financial section cannot be empty")
+
+    # Revenue mix (donut), optional
+    mix = spec.get("revenue_mix") or []
     if mix:
         if len(mix) > len(DONUT_COLOURS):
             p.error(f"revenue_mix supports at most {len(DONUT_COLOURS)} segments")
@@ -273,7 +302,7 @@ def validate(spec: dict) -> Problems:
                 p.warn(f"revenue_mix label '{m.get('label')}' is long and may clip - one or two words")
 
     notes = spec.get("chart_notes") or []
-    if not 4 <= len(notes) <= 6:
+    if not 3 <= len(notes) <= 6:
         p.warn(f"chart_notes has {len(notes)} bullets; house standard is 4 to 6")
 
     # Transaction dynamics
@@ -767,6 +796,42 @@ def set_modern_compat(doc):
 # Document build
 # ═════════════════════════════════════════════════════════════════════════════
 
+def stream_figures(stream: dict) -> str:
+    """'(47.1%, $9.9m)'; unknown parts as TBC, '(TBC)' when neither is known."""
+    pct, value = stream.get("pct"), stream.get("value_m")
+    if pct is None and value is None:
+        return "(TBC)"
+    pct_s = fmt_pct(pct) if pct is not None else "TBC"
+    value_s = f"${value:.1f}m" if value is not None else "$TBC"
+    return f"({pct_s}, {value_s})"
+
+
+def key_metrics_panel(cell, metrics: list[dict], width: int) -> None:
+    """Headline figures as tiles, two per row: value large, label small beneath."""
+    cols = 2
+    rows = (len(metrics) + cols - 1) // cols
+    tile_w = width // cols
+    spacer_p = tight(cell.add_paragraph())
+    spacer_p.paragraph_format.line_spacing = Pt(4)
+    t = cell.add_table(rows=rows, cols=cols)
+    configure_table(t, [tile_w] * cols, borders=False)
+    b = t._tbl.tblPr.find(qn("w:tblBorders"))
+    for side in ("insideH", "insideV"):
+        b.remove(b.find(qn(f"w:{side}")))
+        b.append(_el(side, val="single", sz=24, space=0, color="FFFFFF"))
+    for k, m in enumerate(metrics):
+        tile = t.rows[k // cols].cells[k % cols]
+        shade(tile, SECTION_FILL)
+        value_p = cell_text(tile, str(m["value"]), bold=True, size=14, color=NAVY)
+        value_p.paragraph_format.space_before = Pt(3)
+        label_p = tight(tile.add_paragraph(), after=3)
+        add_run(label_p, m["label"], size=7.5, color=GREY_TEXT)
+        cell_margins(tile, top=30, bottom=30, left=100, right=60)
+    for k in range(len(metrics), rows * cols):
+        cell_margins(t.rows[k // cols].cells[k % cols])
+    tight(cell.add_paragraph()).paragraph_format.line_spacing = Pt(1)
+
+
 def project_title(spec) -> str:
     """'PROJECT BUNDABERG' -> 'Project Bundaberg' (used in the file name)."""
     return spec["project_name"].strip().title()
@@ -810,9 +875,9 @@ def build(spec: dict, out_path: str, workdir: str) -> None:
     p = bullet(doc)
     add_run(p, "Revenue streams: ", bold=True)
     add_run(p, spec["revenue_streams_intro"])
-    for s in spec["revenue_streams"]:
+    for s in spec.get("revenue_streams") or []:
         p = bullet(doc, level=2)
-        add_run(p, f"{s['name']} ({fmt_pct(s['pct'])}, ${s['value_m']:.1f}m)", bold=True)
+        add_run(p, f"{s['name']} {stream_figures(s)}", bold=True)
         add_run(p, f" – {s['description']}")
     for item in spec.get("business_items") or []:
         p = bullet(doc)
@@ -821,7 +886,10 @@ def build(spec: dict, out_path: str, workdir: str) -> None:
         add_run(p, item["text"])
 
     # ── Financial overview ───────────────────────────────────────────────────
-    fin = spec["financials"]
+    # Chart box columns: P&L chart (or key metrics when there is no P&L series),
+    # revenue-mix donut (if a mix is given), chart notes (remaining width).
+    fin = spec.get("financials") or None
+    mix = spec.get("revenue_mix") or []
     section_heading(doc, "Financial overview – P&L and revenue segment mix")
     if spec.get("fin_note"):
         add_run(tight(doc.add_paragraph(), after=2), spec["fin_note"], italic=True, size=8,
@@ -829,33 +897,48 @@ def build(spec: dict, out_path: str, workdir: str) -> None:
 
     combo_png = os.path.join(workdir, "combo.png")
     donut_png = os.path.join(workdir, "donut.png")
-    mix_period = spec.get("revenue_mix_period") or next(
-        (x for x in reversed(fin["periods"]) if x.endswith("A")), fin["periods"][-1])
-    i = fin["periods"].index(mix_period) if mix_period in fin["periods"] else None
-    centre = f"${fin['revenue'][i]:.1f}m\n{mix_period}" if i is not None else mix_period
+    mix_period = spec.get("revenue_mix_period")
+    centre = mix_period or ""
+    if fin:
+        mix_period = mix_period or next(
+            (x for x in reversed(fin["periods"]) if x.endswith("A")), fin["periods"][-1])
+        i = fin["periods"].index(mix_period) if mix_period in fin["periods"] else None
+        centre = f"${fin['revenue'][i]:.1f}m\n{mix_period}" if i is not None else mix_period
     with _chart_lock:
-        render_combo(fin, combo_png)
-        render_donut(spec["revenue_mix"], centre, donut_png)
+        if fin:
+            render_combo(fin, combo_png)
+        if mix:
+            render_donut(mix, centre, donut_png)
 
     box = doc.add_table(rows=1, cols=1)
     configure_table(box, [CONTENT_W], border_color=BOX_BORDER)
     outer = box.rows[0].cells[0]
     cell_margins(outer, top=40, bottom=40, left=60, right=60)
-    inner = outer.add_table(rows=1, cols=3)
-    configure_table(inner, list(CHART_COLS), borders=False)
+    main_w, donut_w, _ = CHART_COLS
+    widths = [main_w] + ([donut_w] if mix else [])
+    widths.append(sum(CHART_COLS) - sum(widths))
+    inner = outer.add_table(rows=1, cols=len(widths))
+    configure_table(inner, widths, borders=False)
     outer._tc.remove(outer.paragraphs[0]._p)       # drop the empty lead paragraph
     tight(outer.paragraphs[-1])                    # trailing paragraph Word requires
     outer.paragraphs[-1].paragraph_format.line_spacing = Pt(1)
 
-    c_chart, c_donut, c_notes = inner.rows[0].cells
-    metric = fin.get("earnings_metric", "EBITDA")
-    for cell, caption in ((c_chart, f"Revenue & {metric} (A$m)"), (c_donut, f"Revenue mix {mix_period}"),
-                          (c_notes, "Notes")):
+    cells = list(inner.rows[0].cells)
+    c_main, c_notes = cells[0], cells[-1]
+    captions = [(c_main, f"Revenue & {fin.get('earnings_metric', 'EBITDA')} (A$m)" if fin else "Key financials")]
+    if mix:
+        captions.append((cells[1], f"Revenue mix {mix_period}" if mix_period else "Revenue mix"))
+    captions.append((c_notes, "Notes"))
+    for cell, caption in captions:
         cell_margins(cell, top=0, bottom=0, left=40, right=40)
         cell_text(cell, caption, bold=True, size=8, color=NAVY)
         cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
-    tight(c_chart.add_paragraph()).add_run().add_picture(combo_png, width=Inches(CHART_IN))
-    tight(c_donut.add_paragraph()).add_run().add_picture(donut_png, width=Inches(DONUT_IN))
+    if fin:
+        tight(c_main.add_paragraph()).add_run().add_picture(combo_png, width=Inches(CHART_IN))
+    else:
+        key_metrics_panel(c_main, spec.get("key_metrics") or [], main_w - 80)
+    if mix:
+        tight(cells[1].add_paragraph()).add_run().add_picture(donut_png, width=Inches(DONUT_IN))
     for note in spec.get("chart_notes") or []:
         p = bullet(c_notes)
         p.paragraph_format.left_indent = Twips(170)

@@ -14,9 +14,9 @@ VALID_API_KEYS = {
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Public: status page, uptime, and screener draft downloads (those links
-        # carry their own HMAC signature and expiry; see app/screener/drafts.py).
-        if request.url.path in ("/", "/api/uptime") or request.url.path.startswith("/screener-drafts/"):
+        # Public: status page, uptime, and screener downloads (those links carry
+        # their own HMAC signature and expiry; see app/screener/downloads.py).
+        if request.url.path in ("/", "/api/uptime") or request.url.path.startswith("/screeners/"):
             return await call_next(request)
 
         if not VALID_API_KEYS:

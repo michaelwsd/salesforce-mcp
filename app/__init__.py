@@ -20,9 +20,8 @@ get_notes, get_activities, and get_emails for a single deal or company.
 
 Investment screeners: when asked to screen a company or build a screener
 (screening memo), call get_screener_guide first and follow it. build_screener
-produces an AA-format .docx DRAFT with a download link for review; only after
-the user explicitly approves that draft, call approve_screener to attach it
-to the deal's Opportunity.
+produces the final AA-format .docx and returns a download link. Never build a
+screener document any other way.
 
 Gotchas:
 - Tasks/Events older than ~1 year are archived and hidden from normal SOQL

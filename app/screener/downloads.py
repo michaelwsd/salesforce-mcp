@@ -1,12 +1,12 @@
-"""Screener drafts: signed, expiring download links for human review.
+"""Screener downloads: signed, expiring links to the finished .docx.
 
-A draft is a ContentVersion in Salesforce Files that is not attached to any
-record (only its owner, the integration user, can see it in Salesforce). Its
-Description is DRAFT_MARKER until it is approved. Reviewers download it through
-/screener-drafts/<token> on this server; the token carries the ContentDocument
-ID and an expiry, signed with HMAC so it cannot be guessed or altered. Storing
-drafts in Salesforce rather than on the server means links survive Render
-restarts and sleeps.
+The file is held as a ContentVersion in Salesforce Files purely as storage: it is
+not attached to any record, so only its owner (the integration user) can see it,
+and it is deleted after RETENTION_DAYS. Users download it through
+/screeners/<token> on this server; the token carries the ContentDocument ID and
+an expiry, signed with HMAC so it cannot be guessed or altered. Storing the file
+in Salesforce rather than on the server means links survive Render restarts and
+sleeps.
 """
 
 import base64
@@ -22,22 +22,21 @@ from starlette.responses import HTMLResponse, Response
 
 from app.client import get_sf_client
 
-DRAFT_MARKER = "AA screener draft"
-APPROVED_MARKER = "AA screener"
-LINK_TTL_SECONDS = 24 * 3600
-DRAFT_RETENTION_DAYS = 7
-DOWNLOAD_PATH = "/screener-drafts/"
+FILE_MARKER = "AA screener download"   # ContentVersion.Description of stored files
+RETENTION_DAYS = 7
+LINK_TTL_SECONDS = RETENTION_DAYS * 24 * 3600
+DOWNLOAD_PATH = "/screeners/"
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def _secret() -> bytes:
-    """Signing key: DRAFT_LINK_SECRET if set, else derived from the Salesforce
+    """Signing key: SCREENER_LINK_SECRET if set, else derived from the Salesforce
     secret so no extra configuration is needed. Rotating either invalidates links."""
-    material = (os.getenv("DRAFT_LINK_SECRET") or os.getenv("CONSUMER_SECRET")
+    material = (os.getenv("SCREENER_LINK_SECRET") or os.getenv("CONSUMER_SECRET")
                 or os.getenv("SALESFORCE_PASSWORD"))
     if not material:
-        raise RuntimeError("No secret available to sign screener draft links")
-    return hashlib.sha256(f"screener-draft-link:{material}".encode()).digest()
+        raise RuntimeError("No secret available to sign screener download links")
+    return hashlib.sha256(f"screener-download-link:{material}".encode()).digest()
 
 
 def _b64(data: bytes) -> str:
@@ -106,15 +105,15 @@ def _fetch(document_id: str) -> tuple[str, bytes] | None:
     return rows[0]["Title"], resp.content
 
 
-async def download_draft(request: Request) -> Response:
+async def download_screener(request: Request) -> Response:
     document_id = verify(request.path_params["token"])
     if not document_id:
-        return _message("Link expired", "This screener draft link is invalid or has expired. "
-                        "Ask Claude for a new draft link.", 404)
+        return _message("Link expired", "This screener link is invalid or has expired "
+                        f"(links last {RETENTION_DAYS} days). Ask Claude to rebuild it.", 404)
     found = await run_in_threadpool(_fetch, document_id)
     if not found:
-        return _message("Draft not found", "This screener draft no longer exists. "
-                        "Drafts not approved within 7 days are deleted; ask Claude to rebuild it.", 404)
+        return _message("Screener not found", "This screener file no longer exists. "
+                        f"Files are kept for {RETENTION_DAYS} days; ask Claude to rebuild it.", 404)
     title, content = found
     filename = f"{title}.docx"
     # HTTP headers are latin-1: plain ASCII fallback plus the RFC 5987 UTF-8 form.

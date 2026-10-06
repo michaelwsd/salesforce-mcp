@@ -3,9 +3,17 @@
 How to build a two-page AA screening memo (.docx) in the current house format with the
 Armitage Salesforce MCP. The user asks in plain language ("screen Acme", "build a
 screener from this IM"); follow this guide end to end without asking them to run
-anything. `build_screener` produces a draft for the user to review; only after they
-approve it does `approve_screener` attach it to the deal in Salesforce. **Always draft,
-then approve: never attach a screener the user has not explicitly approved.**
+anything. `build_screener` produces the final document and returns a download link.
+
+**Hard rules**
+- `build_screener` is the only way to produce a screener. Never write the .docx (or any
+  other document version of it) yourself, even if `build_screener` keeps rejecting the
+  spec: fix the spec until it builds.
+- The output is the final screener. No "draft" labels, no caveats about the memo itself
+  ("teaser-only", "not in the house template", "placeholders"). Each gap goes in its own
+  field as `[TBC]`. `build_screener` rejects disclaimer text.
+- Teaser-only input is normal: use `key_metrics` for the figures the teaser gives and
+  `[TBC]` for the rest (see "Teaser-only screens" below).
 
 **Reference standard: `Screener_Project Bundaberg.docx` (Sep-2026).** Screeners older than
 about July 2026 predate the current revenue-stream bullets and number conventions; do not
@@ -25,8 +33,7 @@ a misfit. Say so; do not soften it.
 3. Write the screener spec (a JSON object)
 4. Call `build_screener`; fix any errors it returns and call it again
 5. Quality check
-6. Reply with the draft download link and a two-to-three sentence summary, then stop
-7. Revise on feedback (new draft each time); on explicit approval, call `approve_screener`
+6. Reply with the download link and a two-to-three sentence summary of the recommendation
 
 ---
 
@@ -40,15 +47,12 @@ Run these at the same time, not one after another.
 2. **Salesforce.**
    - `search` for the company (and obvious bolt-ons), e.g.
      `FIND {Acme} IN NAME FIELDS RETURNING Opportunity(Id, Name, StageName), Account(Id, Name)`.
-     Note the Opportunity ID: the screener is attached to it.
    - `get_company_overview` on the Opportunity (stage, owner, notes, activities, emails, files)
    - `get_notes` and `get_emails` for prior conversations. A prior approach that was
      killed, and why, is material to the recommendation.
    - `list_files` / `download_file` for IMs, and for any earlier screener on the deal
      (titles start `Screener_`)
-   - **Not in Salesforce yet?** Note it, but do not create anything now. If the user
-     approves the screener, `create_deal` creates the Account and Opportunity at that
-     point (Step 7). Never create a duplicate when `search` finds the company.
+   - Read only: do not create or update Salesforce records as part of a screener.
 4. **Public research.** Company website, LinkedIn, news, ASIC / NZ Companies Office
    filings, market size and growth, named competitors, comparable transactions. Search
    the company name with "Australia", "revenue", "EBITDA", "acquisition", "private equity".
@@ -92,6 +96,8 @@ founded year, HQ, FTE and sites; latest revenue and adj. EBITDA with margin.
 fact about the mix: `"FY26A $9.5m; 90.6% is the one-off sale of the unit."`
 
 **`revenue_streams`** - one sub-bullet per division: `{name, pct, value_m, description}`.
+If the source does not give the split, set `pct` and/or `value_m` to `null`; they render
+as `(TBC)`. Never estimate them.
 
 > **House style. This is a named requirement; get it right.**
 >
@@ -132,10 +138,11 @@ fact about the mix: `"FY26A $9.5m; 90.6% is the one-off sale of the unit."`
 
 ### Financial overview
 
-`build_screener` draws three things side by side: a combo chart, a revenue-mix donut, and the
-chart notes.
+`build_screener` draws three things side by side: a combo chart (or key-metrics panel), a
+revenue-mix donut, and the chart notes.
 
-**`financials`**
+**`financials`** - the P&L series for the chart. Set to `null` if the source has no
+multi-period revenue and earnings (e.g. a teaser); use `key_metrics` instead.
 
 | Field | Content |
 |---|---|
@@ -150,15 +157,30 @@ margin line, year-on-year growth arrows and a CAGR arrow. **Growth arrows and CA
 full-year actuals only** (`FYxxA`); forecasts and half-years are shown but excluded.
 Negative values render below a zero line in brackets. Forecast bars are lighter.
 
-**`revenue_mix`** - donut segments `{label, pct}`, one or two words per label, summing to
-100.0%; up to six segments, coloured in AA blues automatically. `revenue_mix_period`
-(optional) sets the period shown; default is the latest actual.
+**`key_metrics`** - headline figures as `{label, value}` tiles, used in place of the chart
+when `financials` is `null`. Up to four, e.g. `{"label": "ARR, Jun-26", "value": "$4.9m"}`,
+`{"label": "Cash flow", "value": "Positive"}`, `{"label": "Revenue & EBITDA history",
+"value": "TBC"}`. Values exactly as disclosed; `TBC` for what is missing.
 
-**`chart_notes`** - four to six short caveat bullets beside the charts. **This is where the
+**`revenue_mix`** - donut segments `{label, pct}`, one or two words per label, summing to
+100.0%; up to six segments, coloured in AA blues automatically. Use `[]` if the split is
+not disclosed (the donut is omitted). `revenue_mix_period` (optional) sets the period
+shown; default is the latest actual.
+
+**`chart_notes`** - four to six short caveat bullets beside the charts (three is fine for a
+teaser). **This is where the
 screener earns its keep.** Cover data quality and period basis; the trend the chart
 flatters; normalisations as a share of reported EBITDA; anything outside the transaction
 perimeter (related-party property, owner salary not drawn); what the forecast is actually
-asking for.
+asking for. For a teaser: what the headline figure includes or hides, and the data to
+request before forming a view.
+
+#### Teaser-only screens
+
+A teaser often gives one headline figure (ARR, revenue or EBITDA) and no P&L. That is a
+normal, complete screener: `financials: null`, the disclosed figures in `key_metrics`,
+`revenue_mix: []`, stream figures `null`, thesis ratings `TBC` where unsupported, and the
+missing data listed as gates in the recommendation. Do not label it a draft.
 
 ### Transaction dynamics, recommendation & next steps
 
@@ -246,17 +268,17 @@ The reader is a busy Investment Director. Dense with signal, free of noise.
 
 ---
 
-## Step 4 - Build the draft
+## Step 4 - Build
 
 Call `build_screener(spec)`.
 
 - **Errors** (sums not 100.0%, wrong ratings, unknown criteria, staff counts, thousands,
-  two-decimal percentages) mean nothing was built. Fix every error in the spec and call
-  again. Do not ask the user to fix them.
+  two-decimal percentages, disclaimer text) mean nothing was built. Fix every error in the
+  spec and call again. Do not ask the user to fix them, and never fall back to producing
+  the document another way.
 - **Warnings** are returned alongside a successful build. Fix them and rebuild unless
   there is a reason not to (e.g. a whole-number percentage quoted from the IM).
-- A successful build returns a `draft_id` and a `download_url` (valid 24 hours). The draft
-  is stored privately in Salesforce and is not attached to any deal yet.
+- A successful build returns a `download_url` for the final .docx, valid 7 days.
 
 ## Step 5 - Quality check
 
@@ -270,25 +292,13 @@ Call `build_screener(spec)`.
 - [ ] Recommendation opens with the verdict and lists numbered gates
 - [ ] Every gap is `[TBC]`; no guessed numbers
 
-## Step 6 - Hand over the draft, then stop
+## Step 6 - Deliver
 
-Reply with the `download_url` (the user clicks it to download the .docx and review it in
-Word), then a two-to-three sentence summary of the recommendation only. Do not repeat the
-memo. Say whether the company is already in Salesforce, and that you will attach the
-screener to the deal once they approve. Then **stop and wait**. Do not call
-`approve_screener` in the same turn, even if the user asked to "just upload it".
+Reply with the `download_url` (the user clicks it to download the .docx), then a
+two-to-three sentence summary of the recommendation only. Do not repeat the memo.
 
-## Step 7 - Revise or approve
-
-- **Changes requested:** update the spec and call `build_screener` again. Each build is a
-  new draft with a new link; send the new link and wait again.
-- **Approved** ("looks good", "approve", "upload it" after seeing the draft): call
-  `approve_screener(draft_id, opportunity_id)` with the `draft_id` of the draft they
-  reviewed. If the company is not in Salesforce, first call `create_deal` (company name,
-  industry, city, source type) and use the Opportunity ID it returns. Reply with the
-  `file_url` and say if you created a new Account/Opportunity.
-- **Link expired** (after 24 hours): rebuild from the same spec to get a fresh link.
-  Unapproved drafts are deleted after 7 days.
+For changes, update the spec and call `build_screener` again; each build returns a new
+link. If a link has expired (7 days), rebuild from the same spec.
 
 ---
 
