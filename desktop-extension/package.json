@@ -1,0 +1,14 @@
+{
+  "name": "armitage-salesforce-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test/e2e.mjs"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "esbuild": "0.28.2"
+  }
+}

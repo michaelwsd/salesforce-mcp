@@ -1,7 +1,9 @@
+import re
 import time
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 from app import mcp
+from app.extension import EXTENSION_PATH
 
 START_TIME = time.time()
 
@@ -46,8 +48,12 @@ async def status_page(request: Request) -> HTMLResponse:
     tool_rows = ""
     for name in tools:
         tool = mcp._tool_manager._tools[name]
-        desc = (tool.description or "").split("\n")[0][:80]
-        tool_rows += f"<tr><td><code>{name}</code></td><td>{desc}</td></tr>\n"
+        # First sentence of the docstring; its first line can end mid-sentence.
+        paragraph = " ".join((tool.description or "").strip().split("\n\n")[0].split())
+        desc = re.split(r"(?<=[a-z)])(?<!e\.g)(?<!i\.e)\.\s", paragraph)[0].rstrip(".") + "."
+        # Let long names wrap at underscores rather than mid-word on phones.
+        label = name.replace("_", "_<wbr>")
+        tool_rows += f"<tr><td><code>{label}</code></td><td>{desc}</td></tr>\n"
 
     sf_dot = "🟢" if sf_ok else "🔴"
 
@@ -79,6 +85,20 @@ async def status_page(request: Request) -> HTMLResponse:
         tr:last-child td {{ border-bottom: none; }}
         code {{ background: #1c2129; padding: 0.15rem 0.4rem; border-radius: 4px;
                font-size: 0.8rem; color: #79c0ff; }}
+        td code wbr {{ display: none; }}
+        .install {{ background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+                   padding: 1.25rem; margin-bottom: 2rem; font-size: 0.85rem; line-height: 1.6; }}
+        .install ol {{ padding-left: 1.25rem; margin-top: 0.75rem; color: #c9d1d9; }}
+        .button {{ display: inline-block; background: #238636; color: #fff; text-decoration: none;
+                  font-weight: 600; padding: 0.5rem 1rem; border-radius: 6px; }}
+        .button:hover {{ background: #2ea043; }}
+        @media (max-width: 640px) {{
+            body {{ padding: 1rem; }}
+            .cards {{ grid-template-columns: 1fr; }}
+            td, th {{ padding: 0.5rem 0.6rem; }}
+            td code wbr {{ display: inline; }}
+            .install code {{ word-break: break-all; }}
+        }}
         .section-title {{ font-size: 0.9rem; color: #8b949e; margin-bottom: 0.75rem;
                          text-transform: uppercase; letter-spacing: 0.05em; }}
     </style>
@@ -104,6 +124,15 @@ async def status_page(request: Request) -> HTMLResponse:
                 <div class="value" id="uptime">{uptime}</div>
                 <div class="detail">{tool_count} tools</div>
             </div>
+        </div>
+
+        <p class="section-title">Install in Claude Desktop</p>
+        <div class="install">
+            <a class="button" href="{EXTENSION_PATH}" download>Download extension</a>
+            <ol>
+                <li>Double-click the downloaded <code>armitage-salesforce.mcpb</code> (or drag it onto Claude Desktop).</li>
+                <li>Click <strong>Install</strong>, enter your API key, and make sure the extension is enabled.</li>
+            </ol>
         </div>
 
         <p class="section-title">Registered Tools</p>

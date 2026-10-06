@@ -1,3 +1,12 @@
+# Claude Desktop extension: bundled and packed here so the download served at
+# /extension/armitage-salesforce.mcpb always matches this deploy.
+FROM node:22-slim AS extension
+WORKDIR /ext
+COPY desktop-extension/package.json desktop-extension/package-lock.json ./
+RUN npm ci
+COPY desktop-extension/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /bin/uv
@@ -21,5 +30,6 @@ RUN python -c "import matplotlib.font_manager"
 
 COPY main.py .
 COPY app/ app/
+COPY --from=extension /ext/dist/armitage-salesforce.mcpb desktop-extension/dist/
 
 CMD ["python", "main.py"]

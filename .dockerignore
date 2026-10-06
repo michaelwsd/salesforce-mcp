@@ -1,0 +1,4 @@
+desktop-extension/node_modules
+desktop-extension/dist
+.venv
+.env

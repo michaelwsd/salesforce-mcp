@@ -1,0 +1,29 @@
+name: Desktop extension
+
+on:
+  push:
+    paths: ["desktop-extension/**", "main.py", "app/**", ".github/workflows/desktop-extension.yml"]
+  pull_request:
+    paths: ["desktop-extension/**", "main.py", "app/**", ".github/workflows/desktop-extension.yml"]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v6
+      - run: npm ci
+      - run: npm run build
+      # Starts the Python server locally and drives the unpacked .mcpb over stdio.
+      - run: npm test

@@ -1,0 +1,37 @@
+{
+  "manifest_version": "0.2",
+  "name": "armitage-salesforce",
+  "display_name": "Armitage Salesforce",
+  "version": "1.0.0",
+  "description": "Armitage Salesforce org and GOWT OneDrive data in Claude.",
+  "long_description": "Connects Claude to the Armitage Associates Salesforce MCP server: query and update deals, companies, contacts, notes, emails, files and reports, read the GOWT spreadsheets on OneDrive, and build investment screeners. Ask the team for your API key.",
+  "author": { "name": "Armitage Associates" },
+  "homepage": "https://salesforce-mcp-cq58.onrender.com/",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "MCP_API_KEY": "${user_config.api_key}"
+      }
+    }
+  },
+  "tools_generated": true,
+  "prompts_generated": true,
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "API key",
+      "description": "Your personal Armitage Salesforce MCP API key.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32"],
+    "runtimes": { "node": ">=18.0.0" }
+  },
+  "license": "UNLICENSED"
+}

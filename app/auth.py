@@ -5,6 +5,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from app.extension import EXTENSION_PATH
+
 VALID_API_KEYS = {
     k.strip()
     for k in os.getenv("MCP_API_KEYS", "").split(",")
@@ -14,9 +16,10 @@ VALID_API_KEYS = {
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Public: status page, uptime, and screener downloads (those links carry
-        # their own HMAC signature and expiry; see app/screener/downloads.py).
-        if request.url.path in ("/", "/api/uptime") or request.url.path.startswith("/screeners/"):
+        # Public: status page, uptime, the Claude Desktop extension (no secrets in
+        # it), and screener downloads (those links carry their own HMAC signature
+        # and expiry; see app/screener/downloads.py).
+        if request.url.path in ("/", "/api/uptime", EXTENSION_PATH) or request.url.path.startswith("/screeners/"):
             return await call_next(request)
 
         if not VALID_API_KEYS:

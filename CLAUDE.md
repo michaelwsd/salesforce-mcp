@@ -38,13 +38,15 @@ Claude Desktop / Skill / Agent
 ```
 salesforce-mcp/
 ├── main.py              # Entry point — starts uvicorn, adds auth + status route
+├── desktop-extension/   # Claude Desktop extension (.mcpb): stdio-to-HTTP bridge, built in Docker
 ├── Dockerfile
 ├── pyproject.toml
 ├── app/
 │   ├── __init__.py      # FastMCP instance + logging + tool registration
 │   ├── client.py        # Salesforce OAuth2 connection (get_sf_client)
 │   ├── activities.py    # Archived-aware Task/Event/EmailMessage lookups shared by notes + company tools
-│   ├── auth.py          # API key middleware (skips / and /api/uptime)
+│   ├── auth.py          # API key middleware (skips /, /api/uptime, extension download, screener links)
+│   ├── extension.py     # Serves the built .mcpb at /extension/armitage-salesforce.mcpb
 │   ├── field_map.py     # OPPORTUNITY_FIELD_MAP + OTHER_NOTABLE_FIELDS
 │   ├── status.py        # Status page HTML + live uptime API
 │   ├── tools/
@@ -242,25 +244,13 @@ Hosted on Render free tier. Auto-deploys from GitHub `main` branch.
 
 ### Connect from Claude Desktop
 
-```json
-{
-  "mcpServers": {
-    "armitage-salesforce": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://salesforce-mcp-cq58.onrender.com/mcp",
-        "--header",
-        "Authorization:${AUTH_TOKEN}"
-      ],
-      "env": {
-        "AUTH_TOKEN": "Bearer <your-api-key>"
-      }
-    }
-  }
-}
-```
+Install the Claude Desktop extension: download `/extension/armitage-salesforce.mcpb` (linked from the status page), double-click it, and enter the API key. It runs on Claude Desktop's built-in Node, so it needs no Node, npm or config editing.
+
+Source is in `desktop-extension/`: `src/index.js` forwards MCP messages unchanged between stdio and `/mcp` (the server is stateless, so there is no session to manage) and answers failed requests with a readable error (bad key, server unreachable). `build.mjs` bundles it with esbuild into one file and packs it with `manifest.json`; the Docker image runs the build and `app/extension.py` serves the result (public route, no secrets in the bundle). `npm test` unpacks the built .mcpb and drives it over stdio against a local server, including several instances starting at once.
+
+Do not go back to `npx -y mcp-remote` in `claude_desktop_config.json`: Claude Desktop starts each server several times at once, and on Windows the concurrent `npx` installs corrupt the npx cache (`Cannot find package ...\undici\index.js`, Oct 2026).
+
+Claude Code: `claude mcp add --transport http armitage-salesforce <url>/mcp --header "Authorization: Bearer <key>"`.
 
 ---
 

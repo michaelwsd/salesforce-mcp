@@ -142,33 +142,33 @@ uv run python -m app.screener app/screener/example_spec.json -o ~/Desktop/
 
 ## Setup for Team Members
 
-Add this to your `claude_desktop_config.json` and restart Claude Desktop:
+### Claude Desktop (Windows and Mac)
 
-```json
-{
-  "mcpServers": {
-    "armitage-salesforce": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://salesforce-mcp-cq58.onrender.com/mcp",
-        "--header",
-        "Authorization:${AUTH_TOKEN}"
-      ],
-      "env": {
-        "AUTH_TOKEN": "Bearer <your-api-key>"
-      }
-    }
-  }
-}
+1. Download the extension from the [status page](https://salesforce-mcp-cq58.onrender.com/) (**Download extension**), or directly: https://salesforce-mcp-cq58.onrender.com/extension/armitage-salesforce.mcpb
+2. Double-click `armitage-salesforce.mcpb` (or drag it onto Claude Desktop, or use Settings > Extensions > Install Extension).
+3. Click **Install**, enter your API key, and make sure the extension is enabled.
+
+Nothing else is needed: the extension runs on the Node.js built into Claude Desktop, so there is no Node, npm or config file to set up. To change the key later, go to Settings > Extensions > Armitage Salesforce.
+
+**Upgrading from the old `npx mcp-remote` setup:** remove the `armitage-salesforce` entry from `claude_desktop_config.json` (Settings > Developer > Edit Config) and restart Claude Desktop, otherwise the tools show up twice. That setup downloaded `mcp-remote` through `npx` every time Claude Desktop started, which corrupts the npx cache on Windows when Claude Desktop starts the server several times at once (`Cannot find package ...\undici\index.js`).
+
+### Claude Code
+
+```bash
+claude mcp add --transport http armitage-salesforce https://salesforce-mcp-cq58.onrender.com/mcp \
+  --header "Authorization: Bearer <your-api-key>"
 ```
 
-Config file location:
-- **Mac:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+### Building the extension
 
-Requires Node.js 18+ (for `npx`).
+The extension lives in `desktop-extension/`: a small stdio-to-HTTP bridge (`src/index.js`) bundled into a single file and packed with `manifest.json`. The Docker image builds it and the server serves it at `/extension/armitage-salesforce.mcpb`, so every deploy ships a matching extension. To build and test locally:
+
+```bash
+cd desktop-extension
+npm ci
+npm run build   # -> dist/armitage-salesforce.mcpb
+npm test        # unpacks the .mcpb and runs it against a local server, like Claude Desktop does
+```
 
 ## Local Development
 
