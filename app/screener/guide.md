@@ -3,8 +3,9 @@
 How to build a two-page AA screening memo (.docx) in the current house format with the
 Armitage Salesforce MCP. The user asks in plain language ("screen Acme", "build a
 screener from this IM"); follow this guide end to end without asking them to run
-anything. `build_screener` produces the document and attaches it to the deal in
-Salesforce.
+anything. `build_screener` produces a draft for the user to review; only after they
+approve it does `approve_screener` attach it to the deal in Salesforce. **Always draft,
+then approve: never attach a screener the user has not explicitly approved.**
 
 **Reference standard: `Screener_Project Bundaberg.docx` (Sep-2026).** Screeners older than
 about July 2026 predate the current revenue-stream bullets and number conventions; do not
@@ -24,7 +25,8 @@ a misfit. Say so; do not soften it.
 3. Write the screener spec (a JSON object)
 4. Call `build_screener`; fix any errors it returns and call it again
 5. Quality check
-6. Reply with the Salesforce link and a two-to-three sentence summary of the recommendation
+6. Reply with the draft download link and a two-to-three sentence summary, then stop
+7. Revise on feedback (new draft each time); on explicit approval, call `approve_screener`
 
 ---
 
@@ -44,9 +46,9 @@ Run these at the same time, not one after another.
      killed, and why, is material to the recommendation.
    - `list_files` / `download_file` for IMs, and for any earlier screener on the deal
      (titles start `Screener_`)
-   - **Not in Salesforce yet?** Call `create_deal` with the company name, industry, city
-     and source type; it creates the Account and Opportunity the way the team does and
-     returns the Opportunity ID. Do not create a duplicate if `search` finds the company.
+   - **Not in Salesforce yet?** Note it, but do not create anything now. If the user
+     approves the screener, `create_deal` creates the Account and Opportunity at that
+     point (Step 7). Never create a duplicate when `search` finds the company.
 4. **Public research.** Company website, LinkedIn, news, ASIC / NZ Companies Office
    filings, market size and growth, named competitors, comparable transactions. Search
    the company name with "Australia", "revenue", "EBITDA", "acquisition", "private equity".
@@ -244,18 +246,17 @@ The reader is a busy Investment Director. Dense with signal, free of noise.
 
 ---
 
-## Step 4 - Build
+## Step 4 - Build the draft
 
-Call `build_screener(spec, opportunity_id)`.
+Call `build_screener(spec)`.
 
 - **Errors** (sums not 100.0%, wrong ratings, unknown criteria, staff counts, thousands,
   two-decimal percentages) mean nothing was built. Fix every error in the spec and call
   again. Do not ask the user to fix them.
 - **Warnings** are returned alongside a successful build. Fix them and rebuild unless
   there is a reason not to (e.g. a whole-number percentage quoted from the IM).
-- The file is saved to Salesforce Files as `Screener_Project X` and attached to the
-  Opportunity. Building again for the same deal and project name uploads a new version of
-  the same file rather than a duplicate, so iterate freely.
+- A successful build returns a `draft_id` and a `download_url` (valid 24 hours). The draft
+  is stored privately in Salesforce and is not attached to any deal yet.
 
 ## Step 5 - Quality check
 
@@ -269,11 +270,25 @@ Call `build_screener(spec, opportunity_id)`.
 - [ ] Recommendation opens with the verdict and lists numbered gates
 - [ ] Every gap is `[TBC]`; no guessed numbers
 
-## Step 6 - Deliver
+## Step 6 - Hand over the draft, then stop
 
-Reply with the `file_url` from `build_screener` (the file in Salesforce; the team opens it
-with their Salesforce login), then a two-to-three sentence summary of the recommendation
-only. Do not repeat the memo. Mention if you created a new Account/Opportunity.
+Reply with the `download_url` (the user clicks it to download the .docx and review it in
+Word), then a two-to-three sentence summary of the recommendation only. Do not repeat the
+memo. Say whether the company is already in Salesforce, and that you will attach the
+screener to the deal once they approve. Then **stop and wait**. Do not call
+`approve_screener` in the same turn, even if the user asked to "just upload it".
+
+## Step 7 - Revise or approve
+
+- **Changes requested:** update the spec and call `build_screener` again. Each build is a
+  new draft with a new link; send the new link and wait again.
+- **Approved** ("looks good", "approve", "upload it" after seeing the draft): call
+  `approve_screener(draft_id, opportunity_id)` with the `draft_id` of the draft they
+  reviewed. If the company is not in Salesforce, first call `create_deal` (company name,
+  industry, city, source type) and use the Opportunity ID it returns. Reply with the
+  `file_url` and say if you created a new Account/Opportunity.
+- **Link expired** (after 24 hours): rebuild from the same spec to get a fresh link.
+  Unapproved drafts are deleted after 7 days.
 
 ---
 

@@ -58,9 +58,10 @@ salesforce-mcp/
 │   │   ├── bulk.py      # 2 tools: bulk_upsert, bulk_query
 │   │   ├── onedrive.py  # 3 tools: list_onedrive_files, download_onedrive_file, read_gowt_excel
 │   │   ├── outreach.py  # 2 tools: upload_email_attachment, bulk_email
-│   │   └── screener.py  # 3 tools + `screen` prompt: get_screener_guide, create_deal, build_screener
+│   │   └── screener.py  # 4 tools + `screen` prompt: get_screener_guide, create_deal, build_screener, approve_screener
 │   └── screener/
 │       ├── build.py     # Spec validation + .docx/chart rendering (python -m app.screener)
+│       ├── drafts.py    # Signed 24h draft download links + /screener-drafts/{token} route
 │       ├── fix_xml.py   # OOXML schema-order repair applied to every build
 │       ├── guide.md     # House-style guide returned by get_screener_guide
 │       └── example_spec.json
@@ -104,7 +105,7 @@ API key passed as Bearer token in HTTP header. Each team member gets a key. The 
 
 ---
 
-## Tools (36)
+## Tools (37)
 
 ### Core CRUD (crud.py)
 
@@ -287,12 +288,13 @@ Hosted on Render free tier. Auto-deploys from GitHub `main` branch.
 
 ## Investment Screeners
 
-Users ask in plain language ("screen Acme"); there is no separate skill to install. The flow:
+Users ask in plain language ("screen Acme"); there is no separate skill to install. Screeners are **always drafted, then approved** by a human before anything is attached to a deal:
 
 1. Claude calls `get_screener_guide` (returns `app/screener/guide.md` + `example_spec.json`)
 2. Gathers attached IM/CIM, Salesforce history (`search`, `get_company_overview`, `get_notes`, `get_emails`) and public research
-3. If the company is not in Salesforce, `create_deal` creates the Account + Opportunity with team conventions (stage `4. Medium`, CloseDate 2049-01-01, industry `fid8__c`, location `fid5__c`, source type `fid10__c`, discussion status `fid31__c`, `fidprocesscreateddate__c` now)
-4. Claude writes the spec JSON and calls `build_screener(spec, opportunity_id)`. Validation errors come back without building; Claude fixes and retries
-5. The .docx is uploaded as ContentVersion `Screener_Project X` linked to the Opportunity; a rebuild with the same title adds a new version of the same ContentDocument
+3. Writes the spec JSON and calls `build_screener(spec)`. Validation errors come back without building; Claude fixes and retries
+4. The .docx is saved as an unattached ContentVersion (Description `AA screener draft`, visible only to the integration user) and Claude replies with a signed download link: `/screener-drafts/<token>`, HMAC over ContentDocumentId + expiry (24h), key from `DRAFT_LINK_SECRET` or derived from `CONSUMER_SECRET`. The route is exempt from API-key auth
+5. On the user's explicit approval, `approve_screener(draft_id, opportunity_id)` links that exact file to the Opportunity (Description becomes `AA screener`), or adds it as a new version if the deal already has a file with the same title. If the company is not in Salesforce, `create_deal` runs first (stage `4. Medium`, CloseDate 2049-01-01, industry `fid8__c`, location `fid5__c`, source type `fid10__c`, discussion status `fid31__c`, `fidprocesscreateddate__c` now)
+6. Unapproved drafts older than 7 days are deleted on the next build
 
 **House format:** two pages, A4, AA colours, combo chart + revenue-mix donut + chart notes, fixed thesis (2 category headers, 5 criteria, confirmed against Dark Horse, Silver Wolf and CoolDrive screeners) and Porter tables. Reference standard is `Screener_Project Bundaberg.docx` (Sep-2026). Charts use Calibri when present, else Carlito (installed in the Docker image).

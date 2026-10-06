@@ -43,11 +43,11 @@ salesforce-mcp/
 │   │   ├── bulk.py      # bulk_upsert, bulk_query
 │   │   ├── onedrive.py  # list_onedrive_files, download_onedrive_file, read_gowt_excel
 │   │   ├── outreach.py  # upload_email_attachment, bulk_email
-│   │   └── screener.py  # get_screener_guide, create_deal, build_screener
-│   └── screener/        # Screener builder: build.py, fix_xml.py, guide.md, example_spec.json
+│   │   └── screener.py  # get_screener_guide, create_deal, build_screener, approve_screener
+│   └── screener/        # Screener builder + drafts: build.py, drafts.py, fix_xml.py, guide.md, example_spec.json
 ```
 
-## Tools (36)
+## Tools (37)
 
 ### Core CRUD
 | Tool | Description |
@@ -116,8 +116,9 @@ salesforce-mcp/
 | Tool | Description |
 |------|-------------|
 | `get_screener_guide` | Workflow, AA house style and spec format for screeners. Claude calls this first when asked to screen a company |
-| `create_deal` | Create the Account + Opportunity (team conventions) for a company not yet in Salesforce; never duplicates |
-| `build_screener` | Validate a screener spec against the house rules, build the two-page .docx, and attach it to the Opportunity (rebuilds add a new version) |
+| `build_screener` | Validate a screener spec against the house rules and build the two-page .docx as a private draft; returns a 24-hour download link for review |
+| `approve_screener` | After the user approves a draft, attach that exact file to the Opportunity (becomes a new version if the deal already has one) |
+| `create_deal` | Create the Account + Opportunity (team conventions) for a company not yet in Salesforce, at approval time; never duplicates |
 
 ### Outreach
 | Tool | Description |
@@ -131,7 +132,14 @@ Salesforce archives Tasks and Events older than about a year, and normal SOQL do
 
 ## Investment Screeners
 
-Ask Claude in plain language, e.g. "screen Acme" or "build a screener from this IM" (attach the IM). Claude calls `get_screener_guide`, researches the company (attached documents, Salesforce history, public sources), creates the deal with `create_deal` if it isn't in Salesforce, and calls `build_screener`. The finished `Screener_Project X.docx` is attached to the Opportunity, and Claude replies with the Salesforce link and a short recommendation. Claude Desktop also lists a `screen` prompt.
+Ask Claude in plain language, e.g. "screen Acme" or "build a screener from this IM" (attach the IM). Screeners are always drafted, then approved:
+
+1. Claude calls `get_screener_guide`, researches the company (attached documents, Salesforce history, public sources) and calls `build_screener`.
+2. Claude replies with a download link to the draft `Screener_Project X.docx` and a short recommendation. Review it in Word.
+3. Ask for changes (Claude builds a new draft) or approve ("looks good, upload it").
+4. On approval Claude calls `approve_screener`, which attaches the reviewed file to the deal's Opportunity, creating the deal first with `create_deal` if the company is not in Salesforce.
+
+Drafts are stored privately in Salesforce Files, unattached, and served at `/screener-drafts/<token>`: an HMAC-signed link that expires after 24 hours (no API key needed to download). Unapproved drafts are deleted after 7 days. Claude Desktop also lists a `screen` prompt.
 
 The builder lives in `app/screener/` (`guide.md` is the house-style guide Claude follows). To build from a spec locally:
 

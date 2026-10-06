@@ -1,19 +1,22 @@
-import os
 import hmac
+import os
+
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 
-VALID_API_KEYS = set(
+VALID_API_KEYS = {
     k.strip()
     for k in os.getenv("MCP_API_KEYS", "").split(",")
     if k.strip()
-)
+}
 
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ("/", "/api/uptime"):
+        # Public: status page, uptime, and screener draft downloads (those links
+        # carry their own HMAC signature and expiry; see app/screener/drafts.py).
+        if request.url.path in ("/", "/api/uptime") or request.url.path.startswith("/screener-drafts/"):
             return await call_next(request)
 
         if not VALID_API_KEYS:
